@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scientists for Public Research</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@700&family=DM+Mono:wght@400;500&family=Hanken+Grotesk:wght@400&family=Inter:wght@400&family=Unbounded:wght@700&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.13/dist/lenis.css">
+  <link rel="stylesheet" href="style.css?v=10">
+</head>
+<body>
+
+<!-- ═════════ NAV ═════════ -->
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#/">
+      <img src="assets/logo.png" alt="SPR logo">
+      <span class="brand-word">SPR<span>*</span></span>
+    </a>
+    <button class="nav-toggle mono" id="nav-toggle" aria-expanded="false">Menu</button>
+    <nav class="nav-links mono">
+      <a href="#/about" data-route="about">About</a>
+      <a href="#/initiatives" data-route="initiatives">Initiatives</a>
+      <a href="#/members" data-route="members">Members</a>
+      <a href="#/events" data-route="events">Events</a>
+      <a href="#/get-involved" data-route="get-involved">Get Involved</a>
+      <a class="btn btn-nav" href="#/get-involved">Join SPR <span class="arr">→</span></a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ═════════ HOME ═════════ -->
+<section class="page" data-page="home">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="wrap">
+      <div class="hero-top">
+        <div class="tagline mono">
+          <p class="c-lavender">Est. 2025</p>
+          <p style="color: var(--line)">University of Maryland, College Park</p>
+        </div>
+        <div class="letter-grid" aria-hidden="true">
+          <div class="lg-cell g">S</div><div class="lg-cell g">P</div><div class="lg-cell g">R</div><div class="lg-cell star"><span>*</span></div>
+          <div class="lg-cell l">U</div><div class="lg-cell l">M</div><div class="lg-cell l">D</div><div class="lg-cell empty"></div>
+        </div>
+      </div>
+      <div class="hero-bottom">
+        <h1 class="hero-title"><span class="word">Scientists for</span><br><span class="word lime">Public</span> <span class="word lav">Research</span></h1>
+        <div class="intro">
+          <p class="body-l">A student-led organization fostering political consciousness and literacy among budding scientists.</p>
+          <div class="ctas">
+            <a class="btn btn-green" href="#/get-involved">Join SPR <span class="arr">→</span></a>
+            <a class="btn btn-outline" href="#/initiatives">Our initiatives <span class="arr">→</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mission -->
+  <div class="mission">
+    <div class="mission-bg">
+      <img src="assets/mission.png" alt="">
+      <div class="tint"></div>
+      <div class="shade"></div>
+    </div>
+    <div class="wrap">
+      <div class="label"><p class="mono semi c-navy">01 — Who we are</p></div>
+      <div class="body">
+        <p class="h2">We believe good science is a public service—and should be for the betterment of all.</p>
+        <p class="body-l">Our members discuss science policy issues, participate in grassroots advocacy, connect with their peers across disciplines, and develop research communication skills.</p>
+        <a class="mono semi c-white link-arrow" href="#/about">About SPR →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Crossword (from the "Hero" frame, added as a homepage section) -->
+  <div class="crossword">
+    <div class="stage-wrap" style="--h: 1010px">
+      <div class="stage" id="crossword">
+        <p class="cw-title" style="left: 38px">scientists for</p>
+        <p class="cw-title" style="right: 34px; text-align: right">public research</p>
+        <!-- cells, stars + stickers are added by main.js -->
+        <p class="cw-hint mono-s">Hover a word · drag the stars around</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 Impacts: rotating View-Master reel -->
+  <div class="impacts">
+    <div class="stage-wrap" style="--h: 725px">
+      <div class="stage" id="reel-stage">
+        <div class="impacts-head">
+          <p class="mono semi c-lime">02 — Our impact</p>
+          <p class="h2 c-navy" style="font-size: 64px; letter-spacing: -2.56px">Four ways we show up.</p>
+        </div>
+        <div class="reel" id="reel">
+          <div class="reel-wheel"><img src="assets/wheel.png" alt="" draggable="false"></div>
+          <!-- cards added by main.js -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Initiatives preview: sticker clock -->
+  <div class="what-we-do">
+    <div class="stage-wrap" style="--h: 670px">
+      <div class="stage" id="clock">
+        <div class="wwd-head">
+          <p class="mono semi c-lime">03 — Initiatives</p>
+          <p class="h2 c-navy" style="font-size: 64px; letter-spacing: -2.56px">What we do.</p>
+        </div>
+        <a class="btn btn-outline wwd-all" href="#/initiatives"><span class="lbl">All initiatives</span> <span class="arr">→</span></a>
+
+        <div class="obj" style="left:683.5px; top:497.5px; width:171px; height:102px; rotate:90deg"><img src="assets/obj0.png" alt="" style="left:.44%; top:.23%; width:99.48%; height:99.14%"></div>
+        <div class="obj" style="left:537px; top:117px; width:84px; height:174px"><img src="assets/obj1.png" alt="" style="left:.15%; top:.16%; width:99.04%; height:99.54%"></div>
+        <div class="obj" style="left:519.46px; top:374.85px; width:90.75px; height:182.3px; rotate:-19.22deg"><img src="assets/obj2.png" alt="" style="left:.52%; top:.22%; width:99.41%; height:99.36%"></div>
+        <div class="obj" style="left:671.45px; top:52.56px; width:76.38px; height:159.86px; rotate:-4.92deg"><img src="assets/obj3.png" alt="" style="left:1.17%; top:.08%; width:98.58%; height:99.84%"></div>
+        <div class="obj" style="left:930.95px; top:342.97px; width:70.12px; height:206.09px"><img src="assets/obj4.png" alt="" style="left:1.12%; top:.24%; width:98.06%; height:99.63%"></div>
+        <div class="obj" style="left:844.96px; top:64.99px; width:118.04px; height:189.01px"><img src="assets/obj5.png" alt="" style="left:.48%; top:.2%; width:99.23%; height:99.48%"></div>
+        <div class="obj" style="left:524.94px; top:304.98px; width:54.1px; height:51.99px"><img src="assets/obj6.png" alt="" style="left:.4%; top:1.27%; width:99.01%; height:98.58%"></div>
+        <div class="obj" style="left:647.98px; top:546.99px; width:48.07px; height:48.04px"><img src="assets/obj7.png" alt="" style="left:.27%; top:.52%; width:99.08%; height:99.08%"></div>
+        <div class="obj" style="left:828.05px; top:515.97px; width:84.97px; height:66.06px"><img src="assets/obj8.png" alt="" style="left:.02%; top:.53%; width:99.29%; height:98.93%"></div>
+        <div class="obj" style="left:916.15px; top:278.36px; width:86.94px; height:44.74px; rotate:-.49deg"><img src="assets/obj9.png" alt="" style="left:.41%; top:.24%; width:98.97%; height:98.88%"></div>
+        <div class="obj" style="left:773.96px; top:134.56px; width:52.04px; height:50.87px"><img src="assets/obj10.png" alt="" style="left:.52%; top:.15%; width:98.93%; height:99.84%"></div>
+        <div class="obj" style="left:630.04px; top:154.97px; width:46.89px; height:59.03px"><img src="assets/obj11.png" alt="" style="left:.34%; top:.3%; width:98.94%; height:98.89%"></div>
+
+        <div class="hand" id="hand-long" style="width:124.459px; rotate:-45.65deg"><img src="assets/arrow1.svg" alt=""></div>
+        <div class="hand" id="hand-short" style="width:74.061px; rotate:-87.68deg"><img src="assets/arrow2.svg" alt=""></div>
+
+        <a class="clock-label" style="left:743px; top:54px" href="#/initiatives" data-card="hackathon">SciPol Hackathon</a>
+        <a class="clock-label" style="left:782px; top:595px" href="#/initiatives" data-card="gbm">Bi-monthly GBM</a>
+        <a class="clock-label" style="left:1001px; top:446px" href="#/initiatives" data-card="link">The Link Program</a>
+        <a class="clock-label" style="left:444px; top:263px" href="#/initiatives" data-card="speakers">Guest Speakers</a>
+        <a class="clock-label" style="left:975px; top:193px" href="#/initiatives" data-card="conference">Mini Conference</a>
+        <a class="clock-label" style="left:464px; top:480px" href="#/initiatives" data-card="journal">Monthly Journal Club</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Instagram -->
+  <div class="insta">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="titles">
+          <p class="mono semi c-green">04 — On Instagram</p>
+          <p class="h2 c-cream">Recently at SPR.</p>
+        </div>
+        <a class="btn btn-outline on-dark c-cream" href="#/get-involved">Follow us <span class="arr">→</span></a>
+      </div>
+      <div class="posts">
+        <div class="post mono">[ instagram post ]</div>
+        <div class="post mono">[ instagram post ]</div>
+        <div class="post mono">[ instagram post ]</div>
+        <div class="post mono">[ instagram post ]</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta-lime">
+    <div class="wrap">
+      <div class="text">
+        <p class="mono semi">05 — Get involved</p>
+        <p class="display">Come to our next<br>general body meeting.</p>
+        <p class="body-l">Bi-monthly GBMs with teach-ins on research and science policy, socials, guest speakers, and more!</p>
+      </div>
+      <a class="btn btn-green" href="#/events">See events <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ ABOUT ═════════ -->
+<section class="page dark" data-page="about">
+  <div class="page-head">
+    <div class="wrap">
+      <div class="titles">
+        <p class="mono semi c-lime">About / Mission</p>
+        <p class="display">Born of a political<br>climate that cast<br><span class="c-green">science aside.</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="about-mission">
+    <div class="wrap">
+      <div class="label"><p class="mono semi c-muted">Our mission</p></div>
+      <div class="body body-l">
+        <p class="c-white">Scientists for Public Research (SPR) is a student-led organization, established in 2025 by four students who envisioned a space dedicated to fostering political consciousness and literacy among budding scientists.</p>
+        <p class="c-lavender">Since then, we have worked to build a community where undergraduate students can discuss science policy issues, participate in grassroots advocacy, connect with their peers across disciplines, and develop research communication skills.</p>
+        <p class="c-lavender">Born of a political climate where world leaders cast aside values of open-mindedness, rigor, and objectivity in science, SPR is an incubator for the next generation of scientists who believe good science is a public service — and should be for the betterment of all.</p>
+      </div>
+    </div>
+  </div>
+  <div class="wrap photos">
+    <div class="ph mono">[ event photo ]</div>
+    <div class="ph mono">[ event photo ]</div>
+    <div class="ph mono">[ event photo ]</div>
+  </div>
+  <div class="founders">
+    <div class="wrap">
+      <div class="left">
+        <p class="mono semi">Est. 2025</p>
+        <p class="h2">Founded by<br>four students.</p>
+      </div>
+      <div class="names">
+        <div class="founder"><p class="h3">Esther Fadaka</p><p class="mono c-teal">Founding member</p></div>
+        <div class="founder"><p class="h3">Maya Hoffman</p><p class="mono c-teal">Founding member</p></div>
+        <div class="founder"><p class="h3">Matthew Adjodha</p><p class="mono c-teal">Founding member</p></div>
+        <div class="founder"><p class="h3">Sabrielle Jahangir</p><p class="mono c-teal">Founding member</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="about-impacts">
+    <div class="wrap">
+      <div class="titles">
+        <p class="mono semi c-lime">Our 4 impacts</p>
+        <p class="h2">Four ways we show up.</p>
+      </div>
+      <div class="tiles">
+        <div class="tile bg-green"><p class="mono semi">01</p><p class="h3">Community-<br>Building</p></div>
+        <div class="tile bg-lime"><p class="mono semi">02</p><p class="h3">Grassroots<br>Advocacy</p></div>
+        <div class="tile bg-lavender"><p class="mono semi">03</p><p class="h3">Science Policy<br>Education</p></div>
+        <div class="tile bg-teal c-white"><p class="mono semi">04</p><p class="h3">Research Skills<br>Development</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="band" style="background: var(--navy-raised)">
+    <div class="wrap">
+      <p class="h2">Meet the people behind SPR.</p>
+      <a class="btn btn-lime" href="#/members">Meet the team <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ INITIATIVES ═════════ -->
+<section class="page dark" data-page="initiatives">
+  <div class="page-head">
+    <div class="wrap">
+      <div class="titles">
+        <p class="mono semi c-lime">Our work / Initiatives</p>
+        <p class="display">Tagline<br><span class="c-lavender">tagline.</span></p>
+      </div>
+      <div class="legend" id="legend">
+        <p class="mono semi c-muted">Guided by our 4 impacts</p>
+        <div class="legend-item mono" data-c="green"><i class="bg-green"></i>Community-Building</div>
+        <div class="legend-item mono" data-c="lime"><i class="bg-lime"></i>Grassroots Advocacy</div>
+        <div class="legend-item mono" data-c="lavender"><i class="bg-lavender"></i>Science Policy Education</div>
+        <div class="legend-item mono" data-c="teal"><i class="bg-teal" style="border: 1px solid var(--green)"></i>Research Skills Development</div>
+      </div>
+    </div>
+  </div>
+  <div class="wrap init-grid" id="init-grid">
+    <article class="init-card" id="init-link" data-c="green" style="--c: var(--green)">
+      <div class="head"><p class="mono semi num">01</p><p class="mono-s c-muted">Mentorship</p></div>
+      <p class="h3">The Link Program</p>
+      <p class="body-m c-lavender">A mentorship program between graduate students and undergraduate students who are seeking support and advice from likeminded, politically conscious mentors in their respective fields.</p>
+    </article>
+    <article class="init-card" id="init-journal" data-c="lime" style="--c: var(--lime)">
+      <div class="head"><p class="mono semi num">02</p><p class="mono-s c-muted">Monthly</p></div>
+      <p class="h3">Journal Club</p>
+      <p class="body-m c-lavender">A forum for undergraduates to bond over shared research interests, learn about new and unfamiliar fields, and develop their science communication skills.</p>
+    </article>
+    <article class="init-card" id="init-conference" data-c="lavender" style="--c: var(--lavender)">
+      <div class="head"><p class="mono semi num">03</p><p class="mono-s c-muted">Showcase</p></div>
+      <p class="h3">Mini Conference</p>
+      <p class="body-m c-lavender">A low-stakes poster conference where undergraduates can showcase their own research alongside their peers and gain experience in communicating research findings.</p>
+    </article>
+    <article class="init-card" id="init-speakers" data-c="green" style="--c: var(--green)">
+      <div class="head"><p class="mono semi num">04</p><p class="mono-s c-muted">Speaker series</p></div>
+      <p class="h3">Guest Speakers</p>
+      <p class="body-m c-lavender">An opportunity to hear from guest researchers from various fields, getting insight into cutting-edge research and a chance to build professional relationships. We seek to platform innovative, politically-conscious researchers to educate and inspire undergraduate students.</p>
+    </article>
+    <article class="init-card" id="init-hackathon" data-c="lime" style="--c: var(--lime)">
+      <div class="head"><p class="mono semi num">05</p><p class="mono-s c-muted">2–3 days</p></div>
+      <p class="h3">SciPol Hackathon</p>
+      <p class="body-m c-lavender">Guided by the SNAP SciPol Hackathon initiative! A simulated science policy problem for budding undergraduate researchers to solve over 2–3 days, competing with other students to come up with creative solutions.</p>
+    </article>
+    <article class="init-card" id="init-gbm" data-c="lavender" style="--c: var(--lavender)">
+      <div class="head"><p class="mono semi num">06</p><p class="mono-s c-muted">Bi-monthly</p></div>
+      <p class="h3">General Body Meetings</p>
+      <p class="body-m c-lavender">A space for socials, guest speakers, teach-ins related to research + science policy, and more!</p>
+    </article>
+  </div>
+  <div class="band" style="background: var(--lavender); color: var(--navy)">
+    <div class="wrap">
+      <p class="h2">Want in? Come find<br>us at a GBM.</p>
+      <a class="btn btn-green" href="#/get-involved">Get involved <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ MEMBERS ═════════ -->
+<section class="page dark" data-page="members">
+  <div class="page-head">
+    <div class="wrap">
+      <div class="titles">
+        <p class="mono semi c-lime">Members / 2025–26 board</p>
+        <p class="display">Meet the <span class="c-green">team</span>.</p>
+      </div>
+      <p class="body-l c-lavender" style="max-width: 460px">Students across neuroscience, public health, data science, environmental science, and more.</p>
+    </div>
+  </div>
+  <div class="wrap member-grid" id="member-grid"><!-- filled by main.js --></div>
+</section>
+
+<!-- ═════════ EVENTS ═════════ -->
+<section class="page dark" data-page="events">
+  <div class="page-head" style="padding-bottom: 64px">
+    <div class="wrap">
+      <div class="titles">
+        <p class="mono semi c-lime">Events / Calendar</p>
+        <p class="display">What's <span class="c-lavender">on.</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="events-body">
+    <div class="wrap">
+      <div class="cal">
+        <div class="cal-head">
+          <p class="h4" id="cal-title">Month Year</p>
+          <div class="cal-ctrl mono">
+            <button id="cal-prev" aria-label="Previous month">←</button>
+            <button id="cal-today">Today</button>
+            <button id="cal-next" aria-label="Next month">→</button>
+          </div>
+        </div>
+        <div class="cal-days mono-s"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+        <div id="cal-grid"></div>
+        <p class="cal-note mono-s">Embedded Google Calendar — styled to match (or iframe)</p>
+      </div>
+      <div class="upcoming">
+        <p class="mono semi c-lime hd">Up next</p>
+        <div class="up-item" data-type="gbm">
+          <span class="tag mono-s bg-green">GBM</span>
+          <p class="h3">General Body Meeting</p>
+          <p class="mono c-lavender" data-when>[ Date · Time ]</p>
+          <p class="mono c-muted">[ Room, Building ]</p>
+        </div>
+        <div class="up-item" data-type="journal">
+          <span class="tag mono-s bg-lime">Journal Club</span>
+          <p class="h3">Monthly Journal Club</p>
+          <p class="mono c-lavender" data-when>[ Date · Time ]</p>
+          <p class="mono c-muted">[ Room, Building ]</p>
+        </div>
+        <div class="up-item" data-type="speaker">
+          <span class="tag mono-s bg-lavender">Speaker</span>
+          <p class="h3">Guest Speaker Series</p>
+          <p class="mono c-lavender" data-when>[ Date · Time ]</p>
+          <p class="mono c-muted">[ Room, Building ]</p>
+        </div>
+        <div style="padding-top: 24px"><a class="btn btn-lime" href="#/events">Subscribe to calendar <span class="arr">→</span></a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ GET INVOLVED ═════════ -->
+<section class="page dark" data-page="get-involved">
+  <div class="page-head">
+    <div class="wrap">
+      <div class="titles">
+        <p class="mono semi c-lime">Get involved</p>
+        <p class="display">Science is a<br>public service.<br><span class="c-lime">Join us.</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="wrap ways">
+    <a class="way bg-green" href="#/events">
+      <p class="mono semi">01</p>
+      <div class="stack"><p class="h3">Come to a GBM</p><p class="body-m">Bi-monthly meetings with teach-ins, socials, and guest speakers.</p><p class="mono semi go">See events <span class="arr">→</span></p></div>
+    </a>
+    <a class="way bg-lime" href="#/initiatives">
+      <p class="mono semi">02</p>
+      <div class="stack"><p class="h3">Join a program</p><p class="body-m">Sign up for the Link Program, Journal Club, Mini Conference, or the SciPol Hackathon.</p><p class="mono semi go">View initiatives <span class="arr">→</span></p></div>
+    </a>
+    <a class="way bg-lavender" href="#/get-involved">
+      <p class="mono semi">03</p>
+      <div class="stack"><p class="h3">Follow along</p><p class="body-m">Keep up with events and science policy news on Instagram.</p><p class="mono semi go">[ @instagram ] <span class="arr">→</span></p></div>
+    </a>
+  </div>
+  <div class="contact">
+    <div class="wrap">
+      <div class="intro-col">
+        <p class="mono semi c-green">Contact</p>
+        <p class="h2">Say hi.</p>
+        <p class="body-l c-lavender">Questions, collaboration ideas, or want to speak at a GBM? Send us a note and a coordinator will get back to you.</p>
+        <p class="mono c-muted">[ club email ]</p>
+      </div>
+      <form class="form" id="contact-form">
+        <div class="row">
+          <div class="field"><label class="mono-s" for="f-name">Name</label><input class="input" id="f-name" placeholder="Your name"></div>
+          <div class="field"><label class="mono-s" for="f-email">Email</label><input class="input" id="f-email" type="email" placeholder="you@terpmail.umd.edu"></div>
+        </div>
+        <div class="field">
+          <span class="mono-s c-muted">I'm interested in</span>
+          <div class="chips">
+            <button type="button" class="pick mono on">Link Program</button>
+            <button type="button" class="pick mono">Journal Club</button>
+            <button type="button" class="pick mono on">Mini Conference</button>
+            <button type="button" class="pick mono">Guest Speakers</button>
+            <button type="button" class="pick mono">SciPol Hackathon</button>
+            <button type="button" class="pick mono">GBMs</button>
+            <button type="button" class="pick mono">Just saying hi</button>
+          </div>
+        </div>
+        <div class="field"><label class="mono-s" for="f-msg">Message</label><textarea class="input" id="f-msg" placeholder="What’s on your mind?"></textarea></div>
+        <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap">
+          <button type="submit" class="btn btn-lime" id="send-btn">Send message <span class="arr">→</span></button>
+          <p class="mono-s sent-note" id="sent-note"></p>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ═════════ FOOTER ═════════ -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div class="footer-contact">
+        <p class="h3">Good science is a public service.</p>
+        <p class="mono">[ club email ]</p>
+        <p class="mono">[ @instagram handle ]</p>
+      </div>
+      <div class="footer-cols mono">
+        <div class="footer-col">
+          <p class="semi hd">Site</p>
+          <a href="#/">Home</a><a href="#/about">About</a><a href="#/initiatives">Initiatives</a><a href="#/members">Members</a>
+        </div>
+        <div class="footer-col">
+          <p class="semi hd">Get involved</p>
+          <a href="#/events">Events</a><a href="#/get-involved">Contact</a><a href="#/get-involved">Instagram</a>
+        </div>
+      </div>
+    </div>
+    <p class="footer-big">Scientists for Public Research*</p>
+    <div class="footer-bottom mono-s"><p>© 2026 SPR · University of Maryland, College Park</p><p>Est. 2025</p></div>
+  </div>
+</footer>
+
+<!-- ═════════ MEMBER BIO MODAL ═════════ -->
+<div class="modal" id="modal" aria-hidden="true">
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="m-name">
+    <div class="ph mono">[ headshot ]</div>
+    <div class="modal-details" id="modal-details" data-lenis-prevent>
+      <div class="modal-top">
+        <p class="mono semi c-green" id="m-role"></p>
+        <button class="close-btn" id="m-close"><span class="mono-s">Close</span><span class="mono semi">✕</span></button>
+      </div>
+      <div class="modal-name">
+        <p class="h2" id="m-name" style="font-size: clamp(40px, 4.35vw, 64px)"></p>
+        <div class="meta mono"><span class="c-lavender" id="m-pron"></span><span class="c-muted">·</span><span class="c-lavender" id="m-year"></span></div>
+        <p class="body-m c-muted" id="m-major"></p>
+      </div>
+      <div class="divider"></div>
+      <div class="body-m modal-bio" id="m-bio"></div>
+      <div class="member-nav mono semi">
+        <button id="m-prev"></button>
+        <button id="m-next"></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Custom crosshair cursor -->
+<div class="cursor" id="cursor" aria-hidden="true"><canvas class="cx-canvas"></canvas><div class="cx-xy"></div></div>
+
+<!-- Cursor playground (press C or use the button) -->
+<button class="pg-toggle mono-s" id="pg-toggle">✛ Cursor playground</button>
+<aside class="pg" id="pg" data-lenis-prevent aria-label="Cursor playground">
+  <div class="pg-head"><p class="mono semi c-lime">Cursor playground</p><button class="mono-s pg-x" id="pg-close">Close ✕</button></div>
+
+  <div class="pg-row"><p class="mono-s c-muted">Test swatches — hover here</p>
+    <div class="pg-test">
+      <i style="background:var(--cream)"></i><i style="background:var(--white)"></i><i style="background:var(--green)"></i><i style="background:var(--lime)"></i>
+      <i style="background:var(--lavender)"></i><i style="background:var(--teal)"></i><i style="background:var(--navy)"></i><i class="photo"></i>
+    </div>
+  </div>
+
+  <div class="pg-row"><p class="mono-s c-muted">Colour</p>
+    <div class="pg-swatches" id="pg-colors">
+      <button data-v="#00d37f" style="--sw:#00d37f" title="Green"></button>
+      <button data-v="#c6f221" style="--sw:#c6f221" title="Lime"></button>
+      <button data-v="#c5b6f1" style="--sw:#c5b6f1" title="Lavender"></button>
+      <button data-v="#014751" style="--sw:#014751" title="Teal"></button>
+      <button data-v="#1a1a32" style="--sw:#1a1a32" title="Navy"></button>
+      <button data-v="#fdfbef" style="--sw:#fdfbef" title="Cream"></button>
+      <button data-v="#ffffff" style="--sw:#ffffff" title="White"></button>
+      <button data-v="#000000" style="--sw:#000000" title="Black"></button>
+      <label class="pg-custom" title="Custom colour"><input type="color" id="pg-color" value="#00d37f"></label>
+    </div>
+  </div>
+
+  <div class="pg-row"><p class="mono-s c-muted">Blend mode <span class="c-white" id="pg-blend-name"></span></p>
+    <div class="pg-chips" id="pg-blends"></div>
+  </div>
+
+  <div class="pg-row pg-sliders">
+    <label class="mono-s c-muted">Line thickness <span class="c-white" id="pg-cw-v"></span><input type="range" id="pg-cw" min="0.5" max="6" step="0.5"></label>
+    <label class="mono-s c-muted">Line opacity <span class="c-white" id="pg-cop-v"></span><input type="range" id="pg-cop" min="0" max="100" step="5"></label>
+    <label class="mono-s c-muted">Square size <span class="c-white" id="pg-csq-v"></span><input type="range" id="pg-csq" min="0" max="48" step="2"></label>
+    <label class="mono-s c-muted">Square border <span class="c-white" id="pg-cb-v"></span><input type="range" id="pg-cb" min="0.5" max="6" step="0.5"></label>
+    <label class="mono-s c-muted">Boil <span class="c-white" id="pg-boil-v"></span><input type="range" id="pg-boil" min="0" max="2" step="0.1"></label>
+  </div>
+
+  <div class="pg-row"><p class="mono-s c-muted">Square style</p>
+    <div class="pg-chips" id="pg-sq">
+      <button class="mono-s" data-v="outline">Outline</button><button class="mono-s" data-v="filled">Filled</button><button class="mono-s" data-v="none">None</button>
+    </div>
+  </div>
+
+  <label class="pg-check mono-s"><input type="checkbox" id="pg-xy"> Show coordinates</label>
+  <label class="pg-check mono-s"><input type="checkbox" id="pg-swap"> Switch to navy over green backgrounds</label>
+
+  <div class="pg-foot">
+    <button class="btn btn-lime" id="pg-copy">Copy settings</button>
+    <button class="mono-s pg-x" id="pg-reset">Reset</button>
+  </div>
+</aside>
+
+<script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+<script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
+<script src="main.js?v=10"></script>
+</body>
+</html>
