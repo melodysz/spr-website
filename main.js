@@ -19,15 +19,19 @@ const NAV_H = () => $('#nav').offsetHeight;
 (function cursor() {
   if (!matchMedia('(hover: hover) and (pointer: fine)').matches) return;
   const el = $('#cursor'), xy = $('.cx-xy', el), canvas = $('.cx-canvas', el), ctx = canvas.getContext('2d');
+  // The square has its own layer so it can use a different blend mode on dark backgrounds
+  const sqEl = $('#cursor-sq'), sqCanvas = $('canvas', sqEl), sqCtx = sqCanvas.getContext('2d');
   document.documentElement.classList.add('has-cursor');
-  let mx = -1, my = -1, hovering = false, down = false, dirty = true;
+  let mx = -1, my = -1, hovering = false, down = false, dark = false, dirty = true;
   let size = 0, seed = 1, lastBoil = 0;
 
   function resize() {
     const dpr = devicePixelRatio || 1;
-    canvas.width = innerWidth * dpr;
-    canvas.height = innerHeight * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const [c, x] of [[canvas, ctx], [sqCanvas, sqCtx]]) {
+      c.width = innerWidth * dpr;
+      c.height = innerHeight * dpr;
+      x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
     dirty = true;
   }
   addEventListener('resize', resize);
@@ -35,20 +39,42 @@ const NAV_H = () => $('#nav').offsetHeight;
 
   // Lines + square are hand-drawn with rough.js; a new seed every 150ms makes them "boil"
   const rc = window.rough ? rough.canvas(canvas) : null;
+  const rcSq = window.rough ? rough.canvas(sqCanvas) : null;
   function line(x1, y1, x2, y2, o) {
     if (rc) return rc.line(x1, y1, x2, y2, o);
     ctx.strokeStyle = o.stroke; ctx.lineWidth = o.strokeWidth;
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
   }
   function square(x, y, s, o, fill) {
-    if (rc) return rc.rectangle(x, y, s, s, { ...o, fill: fill ? o.stroke : undefined, fillStyle: 'solid' });
-    ctx.strokeStyle = ctx.fillStyle = o.stroke; ctx.lineWidth = o.strokeWidth;
-    if (fill) ctx.fillRect(x, y, s, s);
-    ctx.strokeRect(x, y, s, s);
+    if (rcSq) return rcSq.rectangle(x, y, s, s, { ...o, fill: fill ? o.stroke : undefined, fillStyle: 'solid' });
+    sqCtx.strokeStyle = sqCtx.fillStyle = o.stroke; sqCtx.lineWidth = o.strokeWidth;
+    if (fill) sqCtx.fillRect(x, y, s, s);
+    sqCtx.strokeRect(x, y, s, s);
   }
+
+  // Is the spot under the cursor dark? Uses the nearest solid background colour (photo cards count as dark)
+  function isDark(t) {
+    if (t?.closest('.reel-card, [data-dark]')) return true;
+    for (let n = t; n && n !== document.documentElement; n = n.parentElement) {
+      const m = getComputedStyle(n).backgroundColor.match(/[\d.]+/g);
+      if (!m || (m.length === 4 && +m[3] < 0.5)) continue;
+      const [r, g, b] = m.map(Number);
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.4;
+    }
+    return false;
+  }
+  function updateUnder(t) {
+    hovering = !!t?.closest('a, button, .has-letter, .cw-deco, .chip, .legend-item, #reel-stage');
+    el.classList.toggle('on-green', !!t?.closest('.footer, .founders, .bg-green, .btn-green'));
+    dark = isDark(t);
+    sqEl.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
+    dirty = true;
+  }
+
   function draw() {
     const W = innerWidth, H = innerHeight;
     ctx.clearRect(0, 0, W, H);
+    sqCtx.clearRect(0, 0, W, H);
     if (mx < 0) return;
     const stroke = getComputedStyle(el).getPropertyValue('--cc').trim() || cfg.color;
     const base = { stroke, roughness: cfg.boil, seed, disableMultiStroke: true };
@@ -75,7 +101,10 @@ const NAV_H = () => $('#nav').offsetHeight;
     const pad = n => String(Math.round(n)).padStart(4, '0');
     xy.textContent = `X ${pad(mx + scrollX)}\nY ${pad(my + scrollY)}`;
   }
-  addEventListener('scroll', showCoords, { passive: true });
+  addEventListener('scroll', () => {
+    showCoords();
+    if (mx >= 0) updateUnder(document.elementFromPoint(mx, my)); // background under a still cursor changes while scrolling
+  }, { passive: true });
 
   addEventListener('pointermove', e => {
     if (e.pointerType !== 'mouse') return;
@@ -85,28 +114,29 @@ const NAV_H = () => $('#nav').offsetHeight;
     el.classList.toggle('flip-y', my > innerHeight - 50);
     showCoords();
     el.classList.add('visible');
-    const t = e.target instanceof Element ? e.target : null;
-    hovering = !!t?.closest('a, button, .has-letter, .cw-deco, .chip, .legend-item, #reel-stage');
-    el.classList.toggle('on-green', !!t?.closest('.footer, .founders, .bg-green, .btn-green'));
-    dirty = true;
+    sqEl.classList.add('visible');
+    updateUnder(e.target instanceof Element ? e.target : null);
   });
-  document.addEventListener('pointerleave', () => el.classList.remove('visible'));
+  document.addEventListener('pointerleave', () => { el.classList.remove('visible'); sqEl.classList.remove('visible'); });
   addEventListener('pointerdown', () => { down = true; dirty = true; });
   addEventListener('pointerup', () => { down = false; dirty = true; });
 
   /* Playground: live-tweak colour, blend mode, sizes */
-  const DEFAULTS = { color: '#00d37f', blend: 'multiply', cw: 0.5, cop: 100, csq: 10, cb: 1.5, sq: 'filled', swap: true, xy: true, boil: 0.6 };
+  const DEFAULTS = { color: '#00d37f', blend: 'multiply', cw: 0.5, cop: 100, csq: 10, cb: 1.5, sq: 'filled', swap: true, xy: true, boil: 0.6, darkBlend: 'screen' };
   const BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn',
     'hard-light', 'soft-light', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity'];
   let cfg = { ...DEFAULTS };
   try { cfg = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('spr-cursor') || '{}') }; } catch {}
 
   const pg = $('#pg');
-  $('#pg-blends').innerHTML = BLENDS.map(b => `<button data-v="${b}">${b.replace('-', ' ')}</button>`).join('');
+  $('#pg-blends').innerHTML = $('#pg-dark-blends').innerHTML = BLENDS.map(b => `<button data-v="${b}">${b.replace('-', ' ')}</button>`).join('');
 
   function apply() {
     el.style.setProperty('--user-c', cfg.color);
     el.style.setProperty('--blend', cfg.blend);
+    sqEl.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
+    $$('#pg-dark-blends button').forEach(b => b.classList.toggle('on', b.dataset.v === cfg.darkBlend));
+    $('#pg-dark-name').textContent = '· ' + cfg.darkBlend;
     el.style.setProperty('--cw', cfg.cw + 'px');
     el.style.setProperty('--cop', cfg.cop / 100);
     el.style.setProperty('--csq', cfg.csq + 'px');
@@ -136,13 +166,14 @@ const NAV_H = () => $('#nav').offsetHeight;
   $('#pg-colors').addEventListener('click', e => { const b = e.target.closest('button'); if (b) set({ color: b.dataset.v }); });
   $('#pg-color').addEventListener('input', e => set({ color: e.target.value }));
   $('#pg-blends').addEventListener('click', e => { const b = e.target.closest('button'); if (b) set({ blend: b.dataset.v }); });
+  $('#pg-dark-blends').addEventListener('click', e => { const b = e.target.closest('button'); if (b) set({ darkBlend: b.dataset.v }); });
   $('#pg-sq').addEventListener('click', e => { const b = e.target.closest('button'); if (b) set({ sq: b.dataset.v }); });
   for (const k of ['cw', 'cop', 'csq', 'cb', 'boil']) $('#pg-' + k).addEventListener('input', e => set({ [k]: +e.target.value }));
   $('#pg-swap').addEventListener('change', e => set({ swap: e.target.checked }));
   $('#pg-xy').addEventListener('change', e => set({ xy: e.target.checked }));
   $('#pg-reset').addEventListener('click', () => set({ ...DEFAULTS }));
   $('#pg-copy').addEventListener('click', () => {
-    const text = `Cursor: colour ${cfg.color} · blend ${cfg.blend} · lines ${cfg.cw}px at ${cfg.cop}% · square ${cfg.csq}px ${cfg.sq}, ${cfg.cb}px border · coordinates ${cfg.xy ? 'on' : 'off'} · boil ${cfg.boil} · navy over green: ${cfg.swap ? 'on' : 'off'}`;
+    const text = `Cursor: colour ${cfg.color} · blend ${cfg.blend} (square on dark: ${cfg.darkBlend}) · lines ${cfg.cw}px at ${cfg.cop}% · square ${cfg.csq}px ${cfg.sq}, ${cfg.cb}px border · coordinates ${cfg.xy ? 'on' : 'off'} · boil ${cfg.boil} · navy over green: ${cfg.swap ? 'on' : 'off'}`;
     navigator.clipboard?.writeText(text);
     const btn = $('#pg-copy'); btn.textContent = 'Copied ✓';
     setTimeout(() => btn.textContent = 'Copy settings', 1400);

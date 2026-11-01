@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@700&family=DM+Mono:wght@400;500&family=Hanken+Grotesk:wght@400&family=Inter:wght@400&family=Unbounded:wght@700&display=swap" rel="stylesheet">
   <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.13/dist/lenis.css">
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 
@@ -471,6 +471,7 @@
 
 <!-- Custom crosshair cursor -->
 <div class="cursor" id="cursor" aria-hidden="true"><canvas class="cx-canvas"></canvas><div class="cx-xy"></div></div>
+<div class="cursor-sq" id="cursor-sq" aria-hidden="true"><canvas></canvas></div>
 
 <!-- Cursor playground (press C or use the button) -->
 <button class="pg-toggle mono-s" id="pg-toggle">✛ Cursor playground</button>
@@ -502,6 +503,10 @@
     <div class="pg-chips" id="pg-blends"></div>
   </div>
 
+  <div class="pg-row"><p class="mono-s c-muted">Square on dark backgrounds <span class="c-white" id="pg-dark-name"></span></p>
+    <div class="pg-chips" id="pg-dark-blends"></div>
+  </div>
+
   <div class="pg-row pg-sliders">
     <label class="mono-s c-muted">Line thickness <span class="c-white" id="pg-cw-v"></span><input type="range" id="pg-cw" min="0.5" max="6" step="0.5"></label>
     <label class="mono-s c-muted">Line opacity <span class="c-white" id="pg-cop-v"></span><input type="range" id="pg-cop" min="0" max="100" step="5"></label>
@@ -527,6 +532,6 @@
 
 <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
 <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-<script src="main.js?v=10"></script>
+<script src="main.js?v=11"></script>
 </body>
 </html>
