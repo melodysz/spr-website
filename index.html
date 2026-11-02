@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@700&family=DM+Mono:wght@400;500&family=Faculty+Glyphic&family=Hanken+Grotesk:wght@400&family=Inter:wght@400&family=Unbounded:wght@700&display=swap" rel="stylesheet">
   <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.13/dist/lenis.css">
-  <link rel="stylesheet" href="style.css?v=23">
+  <link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
 
@@ -39,6 +39,15 @@
 
   <!-- Intro animation (experimental): 0→100% counter, then a meandering word trail the camera follows down to the photo -->
   <div class="intro-seq" id="intro">
+    <!-- Boiling text: a gentle wobble on the letter edges, re-seeded every 150ms (like the cursor's boil) -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <filter id="boil" x="-10%" y="-25%" width="120%" height="150%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="1">
+          <animate attributeName="seed" values="1;2;3" dur="0.45s" calcMode="discrete" repeatCount="indefinite"/>
+        </feTurbulence>
+        <feDisplacementMap in="SourceGraphic" scale="4" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+    </svg>
     <div class="intro-frame">
       <div class="intro-dark"></div>
       <p class="intro-count" id="intro-count">0%</p>
@@ -528,6 +537,6 @@
 
 <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
 <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-<script src="main.js?v=25"></script>
+<script src="main.js?v=26"></script>
 </body>
 </html>

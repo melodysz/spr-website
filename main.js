@@ -682,7 +682,7 @@ const intro = (function () {
   const words = TRAIL.map(([text, x, y, size, color, star]) => {
     const w = document.createElement('p');
     w.className = 'tw' + (star ? ' g' : '');
-    w.textContent = text;
+    w.innerHTML = `<span class="boil">${text}</span>`;
     Object.assign(w.style, { left: x + 'px', top: y + 'px', fontSize: size + 'px' });
     w.style.setProperty('--c', color);
     stage.appendChild(w);

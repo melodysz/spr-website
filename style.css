@@ -122,6 +122,7 @@ body.intro-on.intro-visible .nav { transform: translateY(-100%); }
 .intro-title { position: absolute; left: -13px; top: 1254px; width: 1270.738px; font-family: var(--f-head); font-weight: 700; font-size: 173.125px; line-height: 150px; letter-spacing: -0.07em; color: var(--green); }
 .tw { position: absolute; translate: -100% 0; font-family: var(--f-head); font-weight: 700; letter-spacing: -0.07em; line-height: normal; white-space: nowrap; color: var(--c);
   opacity: 0; }
+.tw .boil { display: inline-block; filter: url(#boil); } /* boil on the letters; depth blur stays on the word */
 .tw.g { font-family: "Faculty Glyphic", var(--f-head); font-weight: 400; }
 .tw.on { opacity: 1; animation: twIn .85s cubic-bezier(.2,.8,.2,1) backwards; }
 @keyframes twIn { from { opacity: 0; filter: blur(10px); transform: translateY(16px) scale(.94); } }
