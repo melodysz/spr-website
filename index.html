@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@700&family=DM+Mono:wght@400;500&family=Faculty+Glyphic&family=Hanken+Grotesk:wght@400&family=Inter:wght@400&family=Unbounded:wght@700&display=swap" rel="stylesheet">
   <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.13/dist/lenis.css">
-  <link rel="stylesheet" href="style.css?v=24">
+  <link rel="stylesheet" href="style.css?v=31">
 </head>
 <body>
 
@@ -53,6 +53,7 @@
       <p class="intro-count" id="intro-count">0%</p>
     </div>
     <div class="intro-world">
+      <canvas class="intro-speckles-lead" aria-hidden="true"></canvas>
       <div class="stage-wrap" style="--h: 1545px">
         <div class="stage" id="intro-stage">
           <div class="intro-grad"></div>
@@ -60,6 +61,7 @@
           <!-- Figma's photo layer exported with its progressive blur, transparency recovered from black/white exports,
                and the Linear Burn darkening baked in -->
           <img class="intro-photo" src="assets/pexels-grass-blur.png" alt="Two people standing on a grassy hill">
+          <img class="intro-photo intro-photo-soft" src="assets/pexels-grass-blur.png" alt="" aria-hidden="true">
           <p class="intro-title">Scientists for <span class="c-lime">Public</span> <span class="c-lavender">Research</span></p>
           <!-- trail words are added by main.js -->
         </div>
@@ -474,7 +476,7 @@
 </div>
 
 <!-- Custom crosshair cursor -->
-<div class="cursor" id="cursor" aria-hidden="true"><canvas class="cx-canvas"></canvas><div class="cx-xy"></div></div>
+<div class="cursor" id="cursor" aria-hidden="true"><canvas class="cx-line cx-v"></canvas><canvas class="cx-line cx-h"></canvas><div class="cx-xy"></div></div>
 <div class="cursor-sq" id="cursor-sq" aria-hidden="true"><canvas></canvas></div>
 
 <!-- Cursor playground (press C or use the button) -->
@@ -537,6 +539,6 @@
 
 <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
 <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-<script src="main.js?v=26"></script>
+<script src="main.js?v=35"></script>
 </body>
 </html>

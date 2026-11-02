@@ -18,29 +18,36 @@ const NAV_H = () => $('#nav').offsetHeight;
 /* ───────── Custom cursor: full-screen crosshair + square (mouse/trackpad only) ───────── */
 (function cursor() {
   if (!matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-  const el = $('#cursor'), xy = $('.cx-xy', el), canvas = $('.cx-canvas', el), ctx = canvas.getContext('2d');
+  // Performance: the lines and square live on small canvases that are only REDRAWN on the boil beat (or when their
+  // look changes). Moving the mouse just slides them with transforms, which is nearly free.
+  const el = $('#cursor'), xy = $('.cx-xy', el);
+  const vCan = $('.cx-v', el), hCan = $('.cx-h', el), vCtx = vCan.getContext('2d'), hCtx = hCan.getContext('2d');
   // The square has its own layer so it can use a different blend mode on dark backgrounds
   const sqEl = $('#cursor-sq'), sqCanvas = $('canvas', sqEl), sqCtx = sqCanvas.getContext('2d');
   document.documentElement.classList.add('has-cursor');
   let mx = -1, my = -1, hovering = false, down = false, dark = false, dirty = true;
   let size = 0, seed = 1, lastBoil = 0;
+  const LINE_PAD = 12;      // room either side of each line for the hand-drawn wobble
+  let SQ = 80;              // square canvas size (css px), grows if the square is set very large
 
-  function resize() {
+  function setCanvas(c, x, w, h) {
     const dpr = devicePixelRatio || 1;
-    for (const [c, x] of [[canvas, ctx], [sqCanvas, sqCtx]]) {
-      c.width = innerWidth * dpr;
-      c.height = innerHeight * dpr;
-      x.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
+    c.width = Math.ceil(w * dpr); c.height = Math.ceil(h * dpr);
+    c.style.width = w + 'px'; c.style.height = h + 'px';
+    x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function resize() {
+    setCanvas(vCan, vCtx, LINE_PAD * 2, innerHeight);
+    setCanvas(hCan, hCtx, innerWidth, LINE_PAD * 2);
+    SQ = Math.max(80, Math.ceil((cfg?.csq || 10) * 1.85 + 30));
+    setCanvas(sqCanvas, sqCtx, SQ, SQ);
     dirty = true;
   }
-  addEventListener('resize', resize);
-  resize();
 
   // Lines + square are hand-drawn with rough.js; a new seed every 150ms makes them "boil"
-  const rc = window.rough ? rough.canvas(canvas) : null;
-  const rcSq = window.rough ? rough.canvas(sqCanvas) : null;
-  function line(x1, y1, x2, y2, o) {
+  const rough_ = window.rough;
+  const rcV = rough_ ? rough_.canvas(vCan) : null, rcH = rough_ ? rough_.canvas(hCan) : null, rcSq = rough_ ? rough_.canvas(sqCanvas) : null;
+  function line(rc, ctx, x1, y1, x2, y2, o) {
     if (rc) return rc.line(x1, y1, x2, y2, o);
     ctx.strokeStyle = o.stroke; ctx.lineWidth = o.strokeWidth;
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
@@ -73,28 +80,36 @@ const NAV_H = () => $('#nav').offsetHeight;
     dirty = true;
   }
 
+  let stroke = null; // cached cursor colour (re-read only when it can change)
   function draw() {
     const W = innerWidth, H = innerHeight;
-    ctx.clearRect(0, 0, W, H);
-    sqCtx.clearRect(0, 0, W, H);
+    vCtx.clearRect(0, 0, LINE_PAD * 2, H);
+    hCtx.clearRect(0, 0, W, LINE_PAD * 2);
+    sqCtx.clearRect(0, 0, SQ, SQ);
     if (mx < 0) return;
-    const stroke = getComputedStyle(el).getPropertyValue('--cc').trim() || cfg.color;
+    stroke = getComputedStyle(el).getPropertyValue('--cc').trim() || cfg.color;
     const base = { stroke, roughness: cfg.boil, seed, disableMultiStroke: true };
-    ctx.globalAlpha = cfg.cop / 100;
-    line(mx, 0, mx, H, { ...base, strokeWidth: cfg.cw, bowing: 0.15 });
-    line(0, my, W, my, { ...base, strokeWidth: cfg.cw, bowing: 0.15 });
-    ctx.globalAlpha = 1;
+    vCtx.globalAlpha = hCtx.globalAlpha = cfg.cop / 100;
+    line(rcV, vCtx, LINE_PAD, 0, LINE_PAD, H, { ...base, strokeWidth: cfg.cw, bowing: 0.15 });
+    line(rcH, hCtx, 0, LINE_PAD, W, LINE_PAD, { ...base, strokeWidth: cfg.cw, bowing: 0.15 });
+    vCtx.globalAlpha = hCtx.globalAlpha = 1;
     if (cfg.sq !== 'none' && size > 0.5) {
-      square(mx - size / 2, my - size / 2, size, { ...base, strokeWidth: cfg.cb, maxRandomnessOffset: 1, bowing: 0.5 }, cfg.sq === 'filled' || down);
+      square(SQ / 2 - size / 2, SQ / 2 - size / 2, size, { ...base, strokeWidth: cfg.cb, maxRandomnessOffset: 1, bowing: 0.5 }, cfg.sq === 'filled' || down);
     }
   }
-  let lastFrame = performance.now();
+  function place() {
+    vCan.style.transform = `translateX(${mx - LINE_PAD}px)`;
+    hCan.style.transform = `translateY(${my - LINE_PAD}px)`;
+    sqCanvas.style.transform = `translate(${mx - SQ / 2}px, ${my - SQ / 2}px)`;
+    xy.style.transform = `translate(${mx}px, ${my}px)`;
+  }
+  let lastFrame = performance.now(), frame = 0;
   function loop(t) {
     requestAnimationFrame(loop);
     const dt = Math.min(0.05, (t - lastFrame) / 1000);
     lastFrame = t;
-    // Re-check what's under the cursor every frame, so it reacts even when the page moves under a still mouse
-    if (mx >= 0) {
+    // Re-check what's under a still cursor every few frames (the page can move underneath it)
+    if (mx >= 0 && ++frame % 3 === 0) {
       const now = document.elementFromPoint(mx, my);
       if (now !== under) updateUnder(now);
     }
@@ -116,15 +131,21 @@ const NAV_H = () => $('#nav').offsetHeight;
     if (mx >= 0) updateUnder(document.elementFromPoint(mx, my)); // background under a still cursor changes while scrolling
   }, { passive: true });
 
-  addEventListener('pointermove', e => {
+  // Position: use the lowest-latency event the browser offers; moving only slides the canvases
+  function move(e) {
     if (e.pointerType !== 'mouse') return;
+    const first = mx < 0;
     mx = e.clientX; my = e.clientY;
-    xy.style.transform = `translate(${mx}px, ${my}px)`;
+    place();
     el.classList.toggle('flip-x', mx > innerWidth - 90);
     el.classList.toggle('flip-y', my > innerHeight - 50);
     showCoords();
-    el.classList.add('visible');
-    sqEl.classList.add('visible');
+    if (first) { el.classList.add('visible'); sqEl.classList.add('visible'); dirty = true; }
+  }
+  if ('onpointerrawupdate' in window) addEventListener('pointerrawupdate', move);
+  addEventListener('pointermove', e => {
+    move(e);
+    el.classList.add('visible'); sqEl.classList.add('visible');
     updateUnder(e.target instanceof Element ? e.target : null);
   });
   document.addEventListener('pointerleave', () => { el.classList.remove('visible'); sqEl.classList.remove('visible'); });
@@ -143,6 +164,7 @@ const NAV_H = () => $('#nav').offsetHeight;
 
   function apply() {
     el.style.setProperty('--user-c', cfg.color);
+    resize(); // square canvas size follows the square-size setting
     el.style.setProperty('--blend', cfg.blend);
     sqEl.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
     $$('#pg-dark-blends button').forEach(b => b.classList.toggle('on', b.dataset.v === cfg.darkBlend));
@@ -199,6 +221,7 @@ const NAV_H = () => $('#nav').offsetHeight;
     if (e.key.toLowerCase() !== 'c' || e.metaKey || e.ctrlKey || e.target.closest?.('input, textarea')) return;
     toggle(!pg.classList.contains('open'));
   });
+  addEventListener('resize', resize);
   apply();
   requestAnimationFrame(loop);
 })();
@@ -301,6 +324,17 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
   }, { threshold: 0.25 });
   io.observe(stage);
 
+  // Fill the screen: scale the 1470×1010 crossword to fit the viewport below the nav bar
+  function fitToScreen() {
+    const navH = $('#nav').offsetHeight, margin = 24;
+    const cs = Math.min(innerWidth / 1470, (innerHeight - navH - margin * 2) / 1010);
+    const section = stage.closest('.crossword');
+    section.style.setProperty('--cs', cs);
+    section.style.setProperty('--cw-top', `calc(50% + ${navH / 2}px)`);
+  }
+  addEventListener('resize', fitToScreen);
+  fitToScreen();
+
   // Stars + stickers (draggable)
   const decos = [
     { src: 'star1.svg', cx: 108.5, cy: 795.5, w: 181, h: 181, rot: 12.49, inset: '0 0.76% 3.02% 0.76%' },
@@ -331,7 +365,7 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     });
     el.addEventListener('pointermove', e => {
       if (!start) return;
-      const s = scale();
+      const s = stage.getBoundingClientRect().width / 1470; // crossword has its own fit-to-screen scale
       pos = { x: start.px + (e.clientX - start.x) / s, y: start.py + (e.clientY - start.y) / s };
       el.style.translate = `${pos.x}px ${pos.y}px`;
     });
@@ -690,67 +724,187 @@ const intro = (function () {
   });
   const FIRST = { x: 722, y: 50.5 }; // centre of the first "think"
 
-  // Flickering speckles: dots in the trail's colours over the gradient. Every ~quarter second about a third
-  // of them hop to a new spot, so the field shimmers gently instead of reshuffling all at once.
-  const speck = $('.intro-speckles', el), sctx = speck.getContext('2d');
-  const SPECKLE_COLORS = ['#c6f221', '#dafe7a', '#00d37f', '#2fdbb2', '#8cebd7', '#c5b6f1', '#ddd2fa', '#ffffff'];
-  const SPECKLES = 2600, SPECKLE_TICK = 240, SPECKLE_CHURN = 0.33;
-  const newDot = () => ({ x: Math.random() * 1470, y: Math.random() * 1300, d: 1 + Math.random() * 1.6,
-    a: 0.35 + Math.random() * 0.65, c: SPECKLE_COLORS[Math.floor(Math.random() * SPECKLE_COLORS.length)] });
-  const dots = Array.from({ length: SPECKLES }, newDot);
-  function sizeSpeckles() {
-    const k = (devicePixelRatio || 1) * scale(); // crisp on retina, matching the stage's scale
-    speck.width = Math.round(1470 * k);
-    speck.height = Math.round(1545 * k);
-    sctx.setTransform(k, 0, 0, k, 0, 0);
-  }
-  function drawSpeckles() {
-    sctx.clearRect(0, 0, 1470, 1545);
-    for (const dot of dots) {
-      sctx.globalAlpha = dot.a;
-      sctx.fillStyle = dot.c;
-      sctx.fillRect(dot.x, dot.y, dot.d, dot.d);
+  // Hero title: split into letters (kept inside word wrappers so lines only break between words)
+  const title = $('.intro-title', el);
+  let letterIndex = 0;
+  (function splitLetters(node) {
+    for (const child of [...node.childNodes]) {
+      if (child.nodeType === 1) { splitLetters(child); continue; }
+      const frag = document.createDocumentFragment();
+      for (const part of child.textContent.split(/(\s+)/)) {
+        if (!part) continue;
+        if (/^\s+$/.test(part)) { frag.append(part); continue; }
+        const word = document.createElement('span');
+        word.className = 'tt-word';
+        for (const ch of part) {
+          const l = document.createElement('span');
+          l.className = 'tt-ch';
+          l.textContent = ch;
+          l.style.setProperty('--i', letterIndex++);
+          word.append(l);
+        }
+        frag.append(word);
+      }
+      child.replaceWith(frag);
     }
-    sctx.globalAlpha = 1;
-  }
-  function churnSpeckles() {
-    for (let i = 0; i < dots.length; i++) if (Math.random() < SPECKLE_CHURN) dots[i] = newDot();
-    drawSpeckles();
-  }
-  addEventListener('resize', () => { sizeSpeckles(); drawSpeckles(); });
-  sizeSpeckles();
-  drawSpeckles();
+  })(title);
 
-  // Depth blur: words blur more the higher they sit on screen (starts ~42% down, strongest at the top edge)
-  function depthBlur() {
-    for (const w of words) {
-      if (!w.el.classList.contains('on')) continue;
-      const r = w.el.getBoundingClientRect();
-      const b = Math.max(0, Math.min(1.15, (0.42 - (r.top + r.height / 2) / innerHeight) / 0.42));
-      const px = b * b * 9;
-      w.el.style.filter = px > 0.2 ? `blur(${px.toFixed(1)}px)` : '';
-    }
+  // Scramble-in: each letter flashes a block cursor (░▒▓), cycles random characters, then settles — left to right.
+  // The scramble glyph floats over the letter's real spot, so the title never jitters in width.
+  const letters = $$('.tt-ch', title).map(l => { const g = document.createElement('span'); g.className = 'tt-sc'; l.append(g); return { l, g, ch: l.firstChild.textContent }; });
+  const SCRAMBLE_PRESETS = {
+    // in use: letters pop in at random, each flicking through a few faint characters
+    light: { order: 'random', spread: 900, cursor: 0, cycle: 170, tick: 55, chars: 'abcdefghijklmnopqrstuvwxyz', glyphOpacity: 0.55 },
+    // saved for later: left to right, block cursor ░▒▓█ then a longer scramble
+    intense: { order: 'sequential', stagger: 45, cursor: 90, cycle: 320, tick: 50, chars: 'abcdefghijklmnopqrstuvwxyz#%&*?01', cursorChars: '░▒▓█', glyphOpacity: 1 },
+  };
+  const SCRAMBLE = SCRAMBLE_PRESETS.light;
+  let scrambleToken = 0;
+  function hideTitle() { scrambleToken++; letters.forEach(({ l, g }) => { l.classList.remove('set'); g.textContent = ''; }); }
+  function settleTitle() { scrambleToken++; letters.forEach(({ l, g }) => { l.classList.add('set'); g.textContent = ''; }); }
+  function scrambleTitle() {
+    if (reduceMotion) return settleTitle();
+    const my = ++scrambleToken, t0 = performance.now();
+    const rand = (i, step) => { const x = Math.sin(i * 127.1 + step * 311.7 + my * 17.3) * 43758.5453; return x - Math.floor(x); };
+    // start times: evenly spread but shuffled (random order), or one after another
+    const starts = letters.map((_, i) => SCRAMBLE.order === 'random' ? i / (letters.length - 1) * SCRAMBLE.spread : i * SCRAMBLE.stagger);
+    if (SCRAMBLE.order === 'random') for (let i = starts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [starts[i], starts[j]] = [starts[j], starts[i]]; }
+    letters.forEach(({ g }) => { g.style.opacity = SCRAMBLE.glyphOpacity; });
+    requestAnimationFrame(function step(now) {
+      if (my !== scrambleToken) return;
+      let pending = false;
+      letters.forEach(({ l, g }, i) => {
+        if (l.classList.contains('set')) return;
+        const t = now - t0 - starts[i];
+        if (t < 0) { pending = true; return; }
+        if (t < SCRAMBLE.cursor) {
+          g.textContent = SCRAMBLE.cursorChars[Math.min(3, Math.floor(t / SCRAMBLE.cursor * 4))];
+        } else if (t < SCRAMBLE.cursor + SCRAMBLE.cycle) {
+          const k = Math.floor((t - SCRAMBLE.cursor) / SCRAMBLE.tick);
+          g.textContent = SCRAMBLE.chars[Math.floor(rand(i, k) * SCRAMBLE.chars.length)];
+        } else {
+          g.textContent = ''; l.classList.add('set'); return;
+        }
+        pending = true;
+      });
+      if (pending) requestAnimationFrame(step);
+    });
   }
-  let lastSpeck = 0;
-  requestAnimationFrame(function fx(now) {
-    requestAnimationFrame(fx);
-    const onScreen = document.body.classList.contains('intro-on') && document.body.classList.contains('intro-visible');
-    if (!onScreen) return;
-    depthBlur();
-    if (!reduceMotion && now - lastSpeck > SPECKLE_TICK) { lastSpeck = now; churnSpeckles(); }
-  });
 
-  // Space above the trail so the first "think" lands exactly where the counter sits (screen centre).
-  // It's only needed while the intro plays; afterwards it collapses so the page starts at the hero's top.
+  // Space above the trail. While the intro plays it's big enough for the first "think" to land exactly where the
+  // counter sits (screen centre); afterwards it shrinks to a little breathing room above the hero.
+  const TOP_ROOM = 160; // stage px of space kept above the trail after the intro
   let lead = 0, collapsed = false;
   function layout() {
     const s = scale();
-    lead = collapsed ? 0 : Math.max(0, innerHeight / 2 - FIRST.y * s);
+    lead = collapsed ? TOP_ROOM * s : Math.max(TOP_ROOM * s, innerHeight / 2 - FIRST.y * s);
     el.style.setProperty('--lead', lead + 'px');
     count.style.left = `calc(50% + ${(FIRST.x - 735) * s}px)`;
+    if (speckReady) { sizeSpeckles(); drawSpeckles(); }
+  }
+
+  // Flickering speckles: dots in the trail's colours over the gradient. Every ~quarter second about a third
+  // of them hop to a new spot, so the field shimmers gently instead of reshuffling all at once.
+  // Two canvases with the same density: one inside the hero (under the photo) and one over the space above it.
+  const SPECKLE_COLORS = ['#c6f221', '#dafe7a', '#00d37f', '#2fdbb2', '#8cebd7', '#c5b6f1', '#ddd2fa', '#ffffff'];
+  const SPECKLE_AREA = 735, SPECKLE_TICK = 240, SPECKLE_CHURN = 0.33; // one dot per 735 stage-px²
+  // Depth blur (drawn per element, so nothing has to re-blur the whole background):
+  // 0 below 30% of the screen, growing to ~6px at the top edge. Off once the nav bar has slid in.
+  const DEPTH_ZONE = 0.30, DEPTH_MAX = 6;
+  const depthAt = screenY => { const b = Math.max(0, Math.min(1.2, (DEPTH_ZONE - screenY / innerHeight) / DEPTH_ZONE)); return b * b * DEPTH_MAX; };
+
+  // Soft dot sprites (one per colour) used for speckles in the blurred zone
+  const sprites = Object.fromEntries(SPECKLE_COLORS.map(c => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 32;
+    const g = cv.getContext('2d'), grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, c); grad.addColorStop(1, c + '00');
+    g.fillStyle = grad; g.fillRect(0, 0, 32, 32);
+    return [c, cv];
+  }));
+
+  function speckleField(canvas, stageW, stageH) {
+    const ctx = canvas.getContext('2d');
+    let w = stageW(), h = stageH(), dots = [];
+    const newDot = () => ({ x: Math.random() * w, y: Math.random() * h, d: 1 + Math.random() * 1.6,
+      a: 0.35 + Math.random() * 0.65, c: SPECKLE_COLORS[Math.floor(Math.random() * SPECKLE_COLORS.length)] });
+    return {
+      size() {
+        w = stageW(); h = stageH();
+        const k = (devicePixelRatio || 1) * scale(); // crisp on retina, drawn in stage px
+        canvas.width = Math.max(1, Math.round(w * k));
+        canvas.height = Math.max(1, Math.round(h * k));
+        ctx.setTransform(k, 0, 0, k, 0, 0);
+        const n = Math.round(w * h / SPECKLE_AREA);
+        dots = Array.from({ length: n }, newDot);
+      },
+      churn() { for (let i = 0; i < dots.length; i++) if (Math.random() < SPECKLE_CHURN) dots[i] = newDot(); },
+      // depth: whether to soften dots near the top of the screen
+      draw(depth) {
+        ctx.clearRect(0, 0, w, h);
+        const s = scale(), top = canvas.getBoundingClientRect().top;
+        for (const dot of dots) {
+          const blur = depth ? depthAt(top + dot.y * s) / s : 0; // in stage px
+          if (blur < 0.3) {
+            ctx.globalAlpha = dot.a; ctx.fillStyle = dot.c; ctx.fillRect(dot.x, dot.y, dot.d, dot.d);
+          } else {
+            // a soft, larger, fainter dot keeps roughly the same amount of colour as the sharp one
+            const r = dot.d / 2 + blur;
+            ctx.globalAlpha = Math.min(dot.a, dot.a * (dot.d * dot.d) / (r * r) * 2.2);
+            ctx.drawImage(sprites[dot.c], dot.x + dot.d / 2 - r, dot.y + dot.d / 2 - r, r * 2, r * 2);
+          }
+        }
+        ctx.globalAlpha = 1;
+      },
+    };
+  }
+  const heroSpeckles = speckleField($('.intro-speckles', el), () => 1470, () => 1300);
+  const leadSpeckles = speckleField($('.intro-speckles-lead', el), () => innerWidth / scale(), () => lead / scale());
+  let speckReady = true, depthOn = true;
+  function sizeSpeckles() { heroSpeckles.size(); leadSpeckles.size(); }
+  function drawSpeckles() { heroSpeckles.draw(depthOn); leadSpeckles.draw(depthOn); }
+  function churnSpeckles() { heroSpeckles.churn(); leadSpeckles.churn(); drawSpeckles(); }
+  const softPhoto = $('.intro-photo-soft', el);
+  function blurWords() {
+    const s = scale();
+    const blurEl = (node, px) => { node.style.filter = px > 0.2 ? `blur(${px.toFixed(1)}px)` : ''; };
+    for (const w of words) {
+      if (!w.el.classList.contains('on')) continue;
+      const r = w.el.getBoundingClientRect();
+      blurEl(w.el, depthOn ? depthAt(r.top + r.height / 2) / s : 0);
+    }
+    // title letters blur individually, like the words
+    for (const { l } of letters) {
+      const r = l.getBoundingClientRect();
+      blurEl(l, depthOn && r.top < innerHeight * DEPTH_ZONE ? depthAt(r.top + r.height / 2) / s : 0);
+    }
+    // photo: the softened copy fades in toward the top of the screen (mask measured in the photo's own px)
+    const pr = softPhoto.getBoundingClientRect();
+    if (!depthOn || pr.top > innerHeight * DEPTH_ZONE) softPhoto.style.setProperty('--soft-mask', 'linear-gradient(transparent, transparent)');
+    else {
+      const a = (-pr.top) / s, b = (innerHeight * DEPTH_ZONE - pr.top) / s;
+      softPhoto.style.setProperty('--soft-mask', `linear-gradient(to bottom, #000 ${a.toFixed(1)}px, transparent ${b.toFixed(1)}px)`);
+    }
   }
   addEventListener('resize', layout);
   layout();
+
+  let lastSpeck = 0, lastScroll = -1;
+  const photo = $('.intro-photo:not(.intro-photo-soft)', el), PHOTO_PARALLAX = 0.1;
+  requestAnimationFrame(function fx(now) {
+    requestAnimationFrame(fx);
+    if (!document.body.classList.contains('intro-on')) return;
+    const visible = document.body.classList.contains('intro-visible');
+    const wantDepth = visible || playing; // the nav bar slides in when the intro leaves → blur off
+    if (wantDepth !== depthOn) { depthOn = wantDepth; blurWords(); drawSpeckles(); }
+    if (!visible) return;
+    const moved = scrollY !== lastScroll;
+    lastScroll = scrollY;
+    if (!reduceMotion && now - lastSpeck > SPECKLE_TICK) { lastSpeck = now; churnSpeckles(); }
+    else if (moved) drawSpeckles(); // blur follows the dots as the page moves
+    if (moved || playing) blurWords();
+    // Photo parallax: lines up with Figma when the camera lands; drifts slightly slower than the page around that
+    if (!reduceMotion) photo.style.transform = softPhoto.style.transform = `translateY(${(scrollY - endY()) * PHOTO_PARALLAX / scale()}px)`;
+  });
 
   const endY = () => Math.max(0, el.offsetTop + el.offsetHeight - innerHeight);
   const cameraFor = cy => Math.max(0, Math.min(endY(), el.offsetTop + lead + cy * scale() - innerHeight / 2));
@@ -805,15 +959,17 @@ const intro = (function () {
     if (on) lenis?.stop(); else lenis?.start();
   }
   function collapseLead() {
-    const removed = lead;
+    const before = lead;
     collapsed = true;
     layout();
-    if (removed && scrollY > 0) jumpTo(Math.max(0, scrollY - removed)); // keep the same view, no jump
+    const removed = before - lead;
+    if (removed > 0 && scrollY > 0) jumpTo(Math.max(0, scrollY - removed)); // keep the same view, no jump
   }
   function showAll() {
     words.forEach(w => w.el.classList.add('on'));
     count.classList.add('gone');
     el.classList.add('revealed', 'whiten');
+    settleTitle();
     collapseLead();
   }
   function finish() {
@@ -828,6 +984,7 @@ const intro = (function () {
     const my = ++token, alive = () => my === token;
     const wait = ms => new Promise(r => setTimeout(r, ms));
     el.classList.remove('revealed', 'whiten', 'done');
+    hideTitle();
     words.forEach(w => { w.el.classList.remove('on'); w.el.style.filter = ''; });
     count.classList.remove('gone');
     count.textContent = '0%';
@@ -860,6 +1017,9 @@ const intro = (function () {
       await wait(start + SCHEDULE[i] - performance.now()); if (!alive()) return;
       words[i].el.classList.add('on');
     }
+
+    // the title types itself in as the camera lands
+    setTimeout(() => alive() && scrambleTitle(), 250);
 
     // 4. camera finishes easing onto the photo, then scrolling is handed back
     await wait(start + cam.T - performance.now() + 150); if (!alive()) return;
