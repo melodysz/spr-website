@@ -853,12 +853,15 @@ const intro = (function () {
 
   // Space above the trail. While the intro plays it's big enough for the first "think" to land exactly where the
   // counter sits (screen centre); afterwards it shrinks to a little breathing room above the hero.
-  const TOP_ROOM = 160; // stage px of space kept above the trail after the intro
+  const TOP_ROOM = 100; // stage px of space kept above the trail after the intro
   let lead = 0, collapsed = false;
   function layout() {
     const s = scale();
     lead = collapsed ? TOP_ROOM * s : Math.max(TOP_ROOM * s, innerHeight / 2 - FIRST.y * s);
     el.style.setProperty('--lead', lead + 'px');
+    // continue the hero gradient's slope upward through the space above it (no flat band, no line where it starts)
+    const up = lead / s, top = [159, 144, 203].map((v, k) => Math.round(Math.max(0, Math.min(255, v - [-19, 37, 6][k] / 748 * up))));
+    el.style.setProperty('--lead-top', `rgb(${top.join(',')})`);
     count.style.left = stack.style.left = `calc(50% + ${(FIRST.x - 735) * s}px)`;
     if (speckReady) { sizeSpeckles(); drawSpeckles(true); }
   }
@@ -1011,7 +1014,7 @@ const intro = (function () {
   const jumpTo = y => lenis ? lenis.scrollTo(y, { immediate: true, force: true }) : scrollTo(0, y);
 
   // Word pacing: first gap → last gap (ms)
-  const GAP_SLOW = 480, GAP_FAST = 55;
+  const GAP_SLOW = 400, GAP_FAST = 35;
   // y on a CSS-style cubic-bezier(x1, y1, x2, y2) at progress x (solved by bisection)
   function bezierY(x, x1, y1, x2, y2) {
     const at = (t, a, b) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
@@ -1023,7 +1026,7 @@ const intro = (function () {
   // Steady beat: every item's start time comes from the same ease-out curve, measured from one clock
   const SCHEDULE = [0];
   for (let i = 1; i < words.length; i++) {
-    const p = bezierY(i / (words.length - 1), 0, 0, 0.58, 1);
+    const p = bezierY(i / (words.length - 1), 0, 0, 0.25, 1); // strong ease-out: picks up speed early
     SCHEDULE.push(SCHEDULE[i - 1] + GAP_SLOW - (GAP_SLOW - GAP_FAST) * p);
   }
 
@@ -1177,8 +1180,23 @@ const intro = (function () {
     count.classList.add('gone');
     stack.classList.add('gone');
     // "think" unscrambles alone on the dark screen…
+    words[0].el.style.setProperty('--tt-color', 'rgb(255,255,255)'); // starts white
     words[0].el.classList.add('on');
     thinkScr.play(SCRAMBLE_PRESETS.think);
+    // its colour travels white → neon lime → its own green as it unscrambles (frame-driven, like the scramble)
+    (function tintThink() {
+      const STOPS = [[255, 255, 255], [0xc6, 0xf2, 0x21], [0x2f, 0xdb, 0xb2]];
+      const D = thinkScr.duration(SCRAMBLE_PRESETS.think), w = words[0].el;
+      let clock = 0, last = null;
+      requestAnimationFrame(function step(ft) {
+        if (!alive()) return w.style.removeProperty('--tt-color');
+        clock += last === null ? 0 : Math.min(34, ft - last); last = ft;
+        const p = Math.min(1, clock / D), f = p * 2, i = Math.min(1, Math.floor(f)), t = f - i;
+        const c = STOPS[i].map((v, k) => Math.round(v + (STOPS[i + 1][k] - v) * t));
+        w.style.setProperty('--tt-color', `rgb(${c.join(',')})`);
+        if (p < 1) requestAnimationFrame(step); else w.style.removeProperty('--tt-color');
+      });
+    })();
     await wait(thinkScr.duration(SCRAMBLE_PRESETS.think) + 300); if (!alive()) return;
     // …then the dark gives way to lilac as a rising gradient, and the trail + camera get going
     el.classList.add('lilac');

@@ -107,10 +107,10 @@ body.intro-on.intro-visible .nav { transform: translateY(-100%); }
 .intro-seq { position: relative; --lead: 0px; }
 /* Viewport-sized layer pinned over the trail: dark cover, counter, corner labels */
 .intro-frame { position: sticky; top: 0; height: 100vh; margin-bottom: -100vh; z-index: 2; pointer-events: none; overflow: hidden; }
-/* Dark cover (navy #1a1a32 after Linear Burn). It gives way to lilac (the hero's top colour) as a rising linear
-   gradient — the background is 3× taller than the screen and slides from its dark third to its lilac third —
-   then fades out, handing over seamlessly to the hero's own background. */
-.intro-dark { position: absolute; inset: 0; background: linear-gradient(to bottom, #00000c 0%, #00000c 33%, #9f90cb 66%, #9f90cb 100%) 0 0 / 100% 300% no-repeat;
+/* Dark cover (navy #1a1a32 after Linear Burn). It rises away as a linear gradient (black → navy → clear): the
+   background is 3× taller than the screen and slides from its dark third to its clear third, so what's revealed
+   is the hero's own gradient — nothing to mismatch. */
+.intro-dark { position: absolute; inset: 0; background: linear-gradient(to bottom, #00000c 0%, #00000c 33%, #1a1a32 47%, rgba(26, 26, 50, 0) 66%, rgba(26, 26, 50, 0) 100%) 0 0 / 100% 300% no-repeat; /* black → navy → clear: the dark rises away, revealing the hero's real background */
   transition: background-position 1.8s cubic-bezier(.45,0,.25,1), opacity .7s ease; }
 .intro-seq.lilac .intro-dark { background-position: 0 100%; }
 .intro-seq.revealed .intro-dark { opacity: 0; }
@@ -127,7 +127,7 @@ body.intro-on.intro-visible .nav { transform: translateY(-100%); }
 /* The tall world the camera travels through (1545px Figma "Hero" frame, scaled like the other stages) */
 .intro-words { position: absolute; left: 0; right: 0; top: var(--lead); height: calc(1545px * var(--s)); overflow: hidden; z-index: 3; pointer-events: none; }
 .intro-words .stage { --h: 1545px; }
-.intro-world { position: relative; z-index: 1; padding-top: var(--lead); background: #9f90cb; }
+.intro-world { position: relative; z-index: 1; padding-top: var(--lead); background: linear-gradient(to bottom, var(--lead-top, #9f90cb) 0, #9f90cb var(--lead)) no-repeat; } /* space above the hero continues its gradient upward */
 /* Gradient stops are Figma's (#c5b6f1 → #b2dbf7 → #d3ffb4) with the Linear Burn darkening already applied */
 /* Gradient stops are Figma's (#c5b6f1 → #b2dbf7 → #d3ffb4) with the Linear Burn darkening already applied */
 .intro-grad { position: absolute; left: -4px; top: -3px; width: 1478px; height: 1692px; background: linear-gradient(to bottom, #9f90cb 0%, #8cb5d1 44.231%, #add98e 75.135%); }
