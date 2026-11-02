@@ -63,8 +63,10 @@ const NAV_H = () => $('#nav').offsetHeight;
     }
     return false;
   }
+  let under = null; // element currently under the cursor
   function updateUnder(t) {
-    hovering = !!t?.closest('a, button, .has-letter, .cw-deco, .chip, .legend-item, #reel-stage');
+    under = t;
+    hovering = !!t?.closest('a, button, .has-letter, .cw-deco, .chip, .legend-item');
     el.classList.toggle('on-green', !!t?.closest('.footer, .founders, .bg-green, .btn-green'));
     dark = isDark(t);
     sqEl.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
@@ -86,10 +88,18 @@ const NAV_H = () => $('#nav').offsetHeight;
       square(mx - size / 2, my - size / 2, size, { ...base, strokeWidth: cfg.cb, maxRandomnessOffset: 1, bowing: 0.5 }, cfg.sq === 'filled' || down);
     }
   }
+  let lastFrame = performance.now();
   function loop(t) {
     requestAnimationFrame(loop);
+    const dt = Math.min(0.05, (t - lastFrame) / 1000);
+    lastFrame = t;
+    // Re-check what's under the cursor every frame, so it reacts even when the page moves under a still mouse
+    if (mx >= 0) {
+      const now = document.elementFromPoint(mx, my);
+      if (now !== under) updateUnder(now);
+    }
     const target = cfg.sq === 'none' ? 0 : cfg.csq * (hovering ? 1.85 : 1);
-    if (Math.abs(target - size) > 0.05) { size += (target - size) * 0.25; dirty = true; }
+    if (Math.abs(target - size) > 0.05) { size += (target - size) * (1 - Math.exp(-dt * 35)); dirty = true; } // ~70ms to settle
     else if (size !== target) { size = target; dirty = true; }
     if (cfg.boil > 0 && !reduceMotion && t - lastBoil > 150) { lastBoil = t; seed = seed % 9999 + 1; dirty = true; }
     if (dirty) { dirty = false; draw(); }
@@ -195,12 +205,14 @@ const NAV_H = () => $('#nav').offsetHeight;
 
 /* ───────── Router (#/about, #/members …) ───────── */
 let pendingCard = null;
+let introHook = null; // set by the intro module; told about every page change
 
 function route() {
   const name = location.hash.replace(/^#\/?/, '') || 'home';
   const pages = $$('.page');
   const target = pages.find(p => p.dataset.page === name) || pages[0];
   pages.forEach(p => p.classList.toggle('active', p === target));
+  introHook?.(target.dataset.page);
   $$('.nav-links a[data-route]').forEach(a => a.classList.toggle('active', a.dataset.route === target.dataset.page));
   $('#nav').classList.remove('open');
   closeModal();
@@ -621,4 +633,262 @@ $('#contact-form').addEventListener('submit', e => {
   $('#sent-note').textContent = 'Thanks! (Prototype — nothing was actually sent.)';
 });
 
+/* ───────── "Who we are" photo parallax: the taller image drifts slower than the page ───────── */
+(function missionParallax() {
+  const section = $('.mission'), img = $('.mission-bg img');
+  if (!section || reduceMotion) return;
+  function update() {
+    const r = section.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) return;
+    // -1 when the section enters at the bottom, +1 when it leaves at the top
+    const p = (innerHeight / 2 - (r.top + r.height / 2)) / (innerHeight / 2 + r.height / 2);
+    img.style.transform = `translateY(${p * r.height * 0.15}px)`;
+  }
+  addEventListener('scroll', update, { passive: true });
+  addEventListener('resize', update);
+  update();
+})();
+
+/* ───────── Intro animation (experimental) ─────────
+   1. dark screen, lime counter 0→100%
+   2. the counter becomes "think" (same spot), then each word of the trail fades in lower down
+   3. the page glides down after each word while the dark lifts to lilac, then the gradient
+   4. camera lands on the photo, words turn white, scrolling unlocks */
+const intro = (function () {
+  const el = $('#intro'), stage = $('#intro-stage'), count = $('#intro-count');
+
+  // [word, right edge x, top y, font size, colour, asterisk?] — positions from the Figma "Hero" frame
+  const TRAIL = [
+    ['think', 764, 26, 40, '#2fdbb2'],
+    ['*', 707, 75, 96, '#b3f00d', true],
+    ['wonder', 705, 150, 32, '#ddd2fa'],
+    ['*', 668, 205, 72.192, '#dafe7a', true],
+    ['explore', 853, 212, 40, '#b3f00d'],
+    ['investigate', 958, 304, 40, '#8cebd7'],
+    ['*', 972, 360.83, 80, '#dafe7a', true],
+    ['research', 905, 373, 40, '#2fdbb2'],
+    ['ponder', 874, 433, 32, '#ddd2fa'],
+    ['think', 764, 460, 40, '#b3f00d'],
+    ['*', 758, 527.6, 96, '#2fdbb2', true],
+    ['imagine', 707, 566, 40, '#8cebd7'],
+    ['experiment', 853, 639, 40, '#ddd2fa'],
+    ['science', 968, 664, 32, '#8cebd7'],
+    ['explore', 926, 696, 40, '#dafe7a'],
+    ['think', 1010, 745, 40, '#8cebd7'],
+    ['*', 1064.76, 785, 80.64, '#b3f00d', true],
+    ['research', 1120, 841, 40, '#ddd2fa'],
+    ['investigate', 1049, 910, 32, '#dafe7a'],
+  ];
+  const words = TRAIL.map(([text, x, y, size, color, star]) => {
+    const w = document.createElement('p');
+    w.className = 'tw' + (star ? ' g' : '');
+    w.textContent = text;
+    Object.assign(w.style, { left: x + 'px', top: y + 'px', fontSize: size + 'px' });
+    w.style.setProperty('--c', color);
+    stage.appendChild(w);
+    return { el: w, star, cy: y + size * 0.61 };
+  });
+  const FIRST = { x: 722, y: 50.5 }; // centre of the first "think"
+
+  // Flickering speckles: dots in the trail's colours over the gradient. Every ~quarter second about a third
+  // of them hop to a new spot, so the field shimmers gently instead of reshuffling all at once.
+  const speck = $('.intro-speckles', el), sctx = speck.getContext('2d');
+  const SPECKLE_COLORS = ['#c6f221', '#dafe7a', '#00d37f', '#2fdbb2', '#8cebd7', '#c5b6f1', '#ddd2fa', '#ffffff'];
+  const SPECKLES = 2600, SPECKLE_TICK = 240, SPECKLE_CHURN = 0.33;
+  const newDot = () => ({ x: Math.random() * 1470, y: Math.random() * 1300, d: 1 + Math.random() * 1.6,
+    a: 0.35 + Math.random() * 0.65, c: SPECKLE_COLORS[Math.floor(Math.random() * SPECKLE_COLORS.length)] });
+  const dots = Array.from({ length: SPECKLES }, newDot);
+  function sizeSpeckles() {
+    const k = (devicePixelRatio || 1) * scale(); // crisp on retina, matching the stage's scale
+    speck.width = Math.round(1470 * k);
+    speck.height = Math.round(1545 * k);
+    sctx.setTransform(k, 0, 0, k, 0, 0);
+  }
+  function drawSpeckles() {
+    sctx.clearRect(0, 0, 1470, 1545);
+    for (const dot of dots) {
+      sctx.globalAlpha = dot.a;
+      sctx.fillStyle = dot.c;
+      sctx.fillRect(dot.x, dot.y, dot.d, dot.d);
+    }
+    sctx.globalAlpha = 1;
+  }
+  function churnSpeckles() {
+    for (let i = 0; i < dots.length; i++) if (Math.random() < SPECKLE_CHURN) dots[i] = newDot();
+    drawSpeckles();
+  }
+  addEventListener('resize', () => { sizeSpeckles(); drawSpeckles(); });
+  sizeSpeckles();
+  drawSpeckles();
+
+  // Depth blur: words blur more the higher they sit on screen (starts ~42% down, strongest at the top edge)
+  function depthBlur() {
+    for (const w of words) {
+      if (!w.el.classList.contains('on')) continue;
+      const r = w.el.getBoundingClientRect();
+      const b = Math.max(0, Math.min(1.15, (0.42 - (r.top + r.height / 2) / innerHeight) / 0.42));
+      const px = b * b * 9;
+      w.el.style.filter = px > 0.2 ? `blur(${px.toFixed(1)}px)` : '';
+    }
+  }
+  let lastSpeck = 0;
+  requestAnimationFrame(function fx(now) {
+    requestAnimationFrame(fx);
+    const onScreen = document.body.classList.contains('intro-on') && document.body.classList.contains('intro-visible');
+    if (!onScreen) return;
+    depthBlur();
+    if (!reduceMotion && now - lastSpeck > SPECKLE_TICK) { lastSpeck = now; churnSpeckles(); }
+  });
+
+  // Space above the trail so the first "think" lands exactly where the counter sits (screen centre).
+  // It's only needed while the intro plays; afterwards it collapses so the page starts at the hero's top.
+  let lead = 0, collapsed = false;
+  function layout() {
+    const s = scale();
+    lead = collapsed ? 0 : Math.max(0, innerHeight / 2 - FIRST.y * s);
+    el.style.setProperty('--lead', lead + 'px');
+    count.style.left = `calc(50% + ${(FIRST.x - 735) * s}px)`;
+  }
+  addEventListener('resize', layout);
+  layout();
+
+  const endY = () => Math.max(0, el.offsetTop + el.offsetHeight - innerHeight);
+  const cameraFor = cy => Math.max(0, Math.min(endY(), el.offsetTop + lead + cy * scale() - innerHeight / 2));
+  const jumpTo = y => lenis ? lenis.scrollTo(y, { immediate: true, force: true }) : scrollTo(0, y);
+
+  // Word pacing: first gap → last gap (ms)
+  const GAP_SLOW = 480, GAP_FAST = 55;
+  // y on a CSS-style cubic-bezier(x1, y1, x2, y2) at progress x (solved by bisection)
+  function bezierY(x, x1, y1, x2, y2) {
+    const at = (t, a, b) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
+    let lo = 0, hi = 1, t = x;
+    for (let i = 0; i < 20; i++) { t = (lo + hi) / 2; at(t, x1, x2) < x ? lo = t : hi = t; }
+    return at(t, y1, y2);
+  }
+
+  // Steady beat: every item's start time comes from the same ease-out curve, measured from one clock
+  const SCHEDULE = [0];
+  for (let i = 1; i < words.length; i++) {
+    const p = bezierY(i / (words.length - 1), 0, 0, 0.58, 1);
+    SCHEDULE.push(SCHEDULE[i - 1] + GAP_SLOW - (GAP_SLOW - GAP_FAST) * p);
+  }
+
+  // Camera: one continuous move from the top to the photo, on its own clock.
+  // Its ease-in-out curve is fitted each play so it tracks where the words appear,
+  // without ever snapping to a word.
+  const LANDING = 1700; // ms the camera keeps travelling after the last word, easing onto the photo
+  let playing = false, token = 0, cam = null;
+
+  function fitCamera() {
+    const T = SCHEDULE[SCHEDULE.length - 1] + LANDING, end = endY();
+    const keys = words.map((w, i) => [SCHEDULE[i] / T, cameraFor(w.cy)]);
+    let best = { x1: 0.5, x2: 0.5, err: Infinity };
+    for (let x1 = 0.05; x1 < 1; x1 += 0.05) {
+      for (let x2 = 0.05; x2 <= 0.45; x2 += 0.05) { // x2 ≤ .45 keeps the ease-out long, so it glides to a stop
+        let err = 0;
+        for (const [u, y] of keys) err += (end * bezierY(u, x1, 0, x2, 1) - y) ** 2;
+        if (err < best.err) best = { x1, x2, err };
+      }
+    }
+    return { T, end, x1: best.x1, x2: best.x2 };
+  }
+
+  requestAnimationFrame(function camLoop(now) {
+    requestAnimationFrame(camLoop);
+    if (!playing || !cam) return;
+    const u = Math.min(1, (now - cam.start) / cam.T);
+    scrollTo(0, cam.end * bezierY(u, cam.x1, 0, cam.x2, 1));
+  });
+
+  function lock(on) {
+    document.documentElement.classList.toggle('intro-lock', on);
+    if (on) lenis?.stop(); else lenis?.start();
+  }
+  function collapseLead() {
+    const removed = lead;
+    collapsed = true;
+    layout();
+    if (removed && scrollY > 0) jumpTo(Math.max(0, scrollY - removed)); // keep the same view, no jump
+  }
+  function showAll() {
+    words.forEach(w => w.el.classList.add('on'));
+    count.classList.add('gone');
+    el.classList.add('revealed', 'whiten');
+    collapseLead();
+  }
+  function finish() {
+    playing = false;
+    lock(false);
+    el.classList.remove('playing');
+    el.classList.add('done');
+    collapseLead();
+  }
+
+  async function play() {
+    const my = ++token, alive = () => my === token;
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    el.classList.remove('revealed', 'whiten', 'done');
+    words.forEach(w => { w.el.classList.remove('on'); w.el.style.filter = ''; });
+    count.classList.remove('gone');
+    count.textContent = '0%';
+    collapsed = false;
+    layout();
+    jumpTo(0);
+    cam = null;
+    lock(true);
+    playing = true;
+    el.classList.add('playing');
+
+    // 1. counter 0 → 100% (eases in and out)
+    const t0 = performance.now(), DUR = 1500;
+    await new Promise(done => requestAnimationFrame(function step(now) {
+      if (!alive()) return done();
+      const p = Math.min(1, (now - t0) / DUR);
+      const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+      count.textContent = Math.round(e * 100) + '%';
+      p < 1 ? requestAnimationFrame(step) : done();
+    }));
+    await wait(200); if (!alive()) return;
+
+    // 2–3. counter turns into "think", then the trail meanders down on a steady, quickening beat,
+    //       while the camera glides down on its own accelerating curve
+    count.classList.add('gone');
+    el.classList.add('revealed');
+    const start = performance.now();
+    cam = { ...fitCamera(), start };
+    for (let i = 0; i < words.length; i++) {
+      await wait(start + SCHEDULE[i] - performance.now()); if (!alive()) return;
+      words[i].el.classList.add('on');
+    }
+
+    // 4. camera finishes easing onto the photo, then scrolling is handed back
+    await wait(start + cam.T - performance.now() + 150); if (!alive()) return;
+    finish();
+  }
+
+  function skip() {
+    if (!playing) return;
+    token++;
+    showAll();
+    finish();
+    jumpTo(endY());
+  }
+  $('#intro-replay').addEventListener('click', () => {
+    if (location.hash.replace(/^#\/?/, '')) location.hash = '#/';
+    requestAnimationFrame(play);
+  });
+
+  // Nav hides while the intro is on screen
+  new IntersectionObserver(([e]) => document.body.classList.toggle('intro-visible', e.isIntersecting),
+    { rootMargin: '-80px 0px 0px 0px' }).observe(el);
+  introHook = page => {
+    document.body.classList.toggle('intro-on', page === 'home');
+    if (page !== 'home') skip();
+  };
+
+  return { play, showAll };
+})();
+
 route();
+if (document.querySelector('.page.active')?.dataset.page === 'home' && !reduceMotion) intro.play();
+else intro.showAll();

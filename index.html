@@ -6,10 +6,10 @@
   <title>Scientists for Public Research</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@700&family=DM+Mono:wght@400;500&family=Hanken+Grotesk:wght@400&family=Inter:wght@400&family=Unbounded:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@700&family=DM+Mono:wght@400;500&family=Faculty+Glyphic&family=Hanken+Grotesk:wght@400&family=Inter:wght@400&family=Unbounded:wght@700&display=swap" rel="stylesheet">
   <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.13/dist/lenis.css">
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
 
@@ -37,27 +37,22 @@
 <!-- ═════════ HOME ═════════ -->
 <section class="page" data-page="home">
 
-  <!-- Hero -->
-  <div class="hero">
-    <div class="wrap">
-      <div class="hero-top">
-        <div class="tagline mono">
-          <p class="c-lavender">Est. 2025</p>
-          <p style="color: var(--line)">University of Maryland, College Park</p>
-        </div>
-        <div class="letter-grid" aria-hidden="true">
-          <div class="lg-cell g">S</div><div class="lg-cell g">P</div><div class="lg-cell g">R</div><div class="lg-cell star"><span>*</span></div>
-          <div class="lg-cell l">U</div><div class="lg-cell l">M</div><div class="lg-cell l">D</div><div class="lg-cell empty"></div>
-        </div>
-      </div>
-      <div class="hero-bottom">
-        <h1 class="hero-title"><span class="word">Scientists for</span><br><span class="word lime">Public</span> <span class="word lav">Research</span></h1>
-        <div class="intro">
-          <p class="body-l">A student-led organization fostering political consciousness and literacy among budding scientists.</p>
-          <div class="ctas">
-            <a class="btn btn-green" href="#/get-involved">Join SPR <span class="arr">→</span></a>
-            <a class="btn btn-outline" href="#/initiatives">Our initiatives <span class="arr">→</span></a>
-          </div>
+  <!-- Intro animation (experimental): 0→100% counter, then a meandering word trail the camera follows down to the photo -->
+  <div class="intro-seq" id="intro">
+    <div class="intro-frame">
+      <div class="intro-dark"></div>
+      <p class="intro-count" id="intro-count">0%</p>
+    </div>
+    <div class="intro-world">
+      <div class="stage-wrap" style="--h: 1545px">
+        <div class="stage" id="intro-stage">
+          <div class="intro-grad"></div>
+          <canvas class="intro-speckles" aria-hidden="true"></canvas>
+          <!-- Figma's photo layer exported with its progressive blur, transparency recovered from black/white exports,
+               and the Linear Burn darkening baked in -->
+          <img class="intro-photo" src="assets/pexels-grass-blur.png" alt="Two people standing on a grassy hill">
+          <p class="intro-title">Scientists for <span class="c-lime">Public</span> <span class="c-lavender">Research</span></p>
+          <!-- trail words are added by main.js -->
         </div>
       </div>
     </div>
@@ -474,8 +469,9 @@
 <div class="cursor-sq" id="cursor-sq" aria-hidden="true"><canvas></canvas></div>
 
 <!-- Cursor playground (press C or use the button) -->
-<button class="pg-toggle mono-s" id="pg-toggle">✛ Cursor playground</button>
-<aside class="pg" id="pg" data-lenis-prevent aria-label="Cursor playground">
+<button class="intro-replay mono-s" id="intro-replay" data-dev-ui>↺ Replay intro</button>
+<button class="pg-toggle mono-s" id="pg-toggle" data-dev-ui>✛ Cursor playground</button>
+<aside class="pg" id="pg" data-dev-ui data-lenis-prevent aria-label="Cursor playground">
   <div class="pg-head"><p class="mono semi c-lime">Cursor playground</p><button class="mono-s pg-x" id="pg-close">Close ✕</button></div>
 
   <div class="pg-row"><p class="mono-s c-muted">Test swatches — hover here</p>
@@ -532,6 +528,6 @@
 
 <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
 <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-<script src="main.js?v=11"></script>
+<script src="main.js?v=25"></script>
 </body>
 </html>

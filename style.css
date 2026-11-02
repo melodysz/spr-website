@@ -32,7 +32,7 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { -webkit-font-smoothing: antialiased; }
-body { background: var(--paper); color: var(--navy); font-family: var(--f-body); overflow-x: hidden; }
+body { background: var(--paper); color: var(--navy); font-family: var(--f-body); overflow-x: clip; }
 a { color: inherit; text-decoration: none; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; text-align: left; }
 img { display: block; }
@@ -73,7 +73,7 @@ img { display: block; }
 .link-arrow:hover { color: var(--lime); }
 
 /* ───────── Nav ───────── */
-.nav { position: sticky; top: 0; z-index: 50; background: var(--cream); border-bottom: 1px solid var(--line); }
+.nav { position: sticky; top: 0; z-index: 50; background: var(--cream); }
 .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 0 var(--gutter); max-width: 1470px; margin: 0 auto; height: 68px; }
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand img { width: 36px; height: 36px; object-fit: cover; transition: transform .5s cubic-bezier(.3,.7,.4,1.3); }
@@ -96,6 +96,39 @@ img { display: block; }
 /* Scaled art stages (crossword, reel, sticker clock) */
 .stage-wrap { position: relative; height: calc(var(--h) * var(--s)); overflow: hidden; }
 .stage { position: absolute; left: 50%; top: 0; width: 1470px; height: var(--h); transform: translateX(-50%) scale(var(--s)); transform-origin: top center; }
+
+/* ───────── Home: Intro animation (experimental) ───────── */
+html.intro-lock { overflow: hidden; }
+/* While the intro is on screen the nav is tucked away (fixed so it doesn't leave a gap) */
+body.intro-on .nav { position: fixed; left: 0; right: 0; top: 0; transition: transform .4s cubic-bezier(.2,.8,.2,1); }
+body.intro-on.intro-visible .nav { transform: translateY(-100%); }
+
+.intro-seq { position: relative; --lead: 0px; }
+/* Viewport-sized layer pinned over the trail: dark cover, counter, corner labels */
+.intro-frame { position: sticky; top: 0; height: 100vh; margin-bottom: -100vh; z-index: 2; pointer-events: none; overflow: hidden; }
+.intro-dark { position: absolute; inset: 0; background: #00000c; transition: opacity 2.6s ease; } /* navy #1a1a32 after Linear Burn */
+.intro-seq.revealed .intro-dark { opacity: 0; }
+.intro-count { position: absolute; top: 50%; left: 50%; translate: -50% -50%; font-family: var(--f-head); font-weight: 700; font-size: calc(50px * var(--s)); letter-spacing: -0.07em; color: var(--white); font-variant-numeric: tabular-nums; transition: opacity .35s, scale .5s, filter .4s; }
+.intro-count.gone { opacity: 0; scale: .8; filter: blur(6px); }
+
+/* The tall world the camera travels through (1545px Figma "Hero" frame, scaled like the other stages) */
+.intro-world { position: relative; z-index: 1; padding-top: var(--lead); background: #9f90cb; }
+/* Gradient stops are Figma's (#c5b6f1 → #b2dbf7 → #d3ffb4) with the Linear Burn darkening already applied */
+/* Gradient stops are Figma's (#c5b6f1 → #b2dbf7 → #d3ffb4) with the Linear Burn darkening already applied */
+.intro-grad { position: absolute; left: -4px; top: -3px; width: 1478px; height: 1692px; background: linear-gradient(to bottom, #9f90cb 0%, #8cb5d1 44.231%, #add98e 75.135%); }
+/* Flickering coloured speckles over the gradient (drawn by main.js) */
+.intro-speckles { position: absolute; left: 0; top: 0; width: 1470px; height: 1545px; pointer-events: none; }
+.intro-photo { position: absolute; left: 0; top: 794px; width: 1474px; height: 914px; max-width: none; }
+.intro-title { position: absolute; left: -13px; top: 1254px; width: 1270.738px; font-family: var(--f-head); font-weight: 700; font-size: 173.125px; line-height: 150px; letter-spacing: -0.07em; color: var(--green); }
+.tw { position: absolute; translate: -100% 0; font-family: var(--f-head); font-weight: 700; letter-spacing: -0.07em; line-height: normal; white-space: nowrap; color: var(--c);
+  opacity: 0; }
+.tw.g { font-family: "Faculty Glyphic", var(--f-head); font-weight: 400; }
+.tw.on { opacity: 1; animation: twIn .85s cubic-bezier(.2,.8,.2,1) backwards; }
+@keyframes twIn { from { opacity: 0; filter: blur(10px); transform: translateY(16px) scale(.94); } }
+
+.intro-replay { position: fixed; left: 16px; bottom: 16px; z-index: 90; padding: 10px 14px; background: var(--navy); color: var(--lime); border: 1.5px solid var(--lime); display: none; transition: background .2s, color .2s; }
+.intro-replay:hover { background: var(--lime); color: var(--navy); }
+body.intro-on .intro-replay { display: block; }
 
 /* ───────── Home: Hero ───────── */
 .hero { background: var(--cream); }
@@ -125,7 +158,8 @@ img { display: block; }
 /* ───────── Home: Mission ───────── */
 .mission { position: relative; min-height: 862px; display: flex; overflow: hidden; }
 .mission-bg { position: absolute; inset: 0; pointer-events: none; }
-.mission-bg img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 56.5%; }
+/* Image is 30% taller than the section; main.js slides it for a parallax drift */
+.mission-bg img { position: absolute; left: 0; top: -15%; width: 100%; height: 130%; object-fit: cover; object-position: 50% 56.5%; will-change: transform; }
 .mission-bg .tint { position: absolute; inset: 0; background: linear-gradient(to bottom, var(--cream), var(--lavender)); mix-blend-mode: multiply; }
 .mission-bg .shade { position: absolute; inset: 0; background: linear-gradient(to left, rgba(26,26,50,.25), rgba(26,26,50,0)); }
 .mission .wrap { position: relative; width: 100%; display: flex; gap: 80px; align-items: stretch; padding-top: 120px; padding-bottom: 120px; }
@@ -353,7 +387,8 @@ html.has-cursor, html.has-cursor * { cursor: none !important; }
 .cursor.no-xy .cx-xy { display: none; }
 
 /* Cursor playground panel */
-.pg-toggle { position: fixed; left: 16px; bottom: 16px; z-index: 90; padding: 10px 14px; background: var(--navy); color: var(--lime); border: 1.5px solid var(--lime); transition: background .2s, color .2s; }
+/* Playground button hidden for now (press C to open the panel) */
+.pg-toggle { display: none !important; position: fixed; left: 16px; bottom: 16px; z-index: 90; padding: 10px 14px; background: var(--navy); color: var(--lime); border: 1.5px solid var(--lime); transition: background .2s, color .2s; }
 .pg-toggle:hover { background: var(--lime); color: var(--navy); }
 html:not(.has-cursor) .pg-toggle, html:not(.has-cursor) .pg { display: none; }
 .pg { position: fixed; right: 16px; bottom: 16px; z-index: 95; width: 360px; max-height: calc(100vh - 32px); overflow-y: auto; background: var(--navy); color: var(--white); border: 1px solid var(--line); box-shadow: 0 20px 40px rgba(0,0,0,.4); padding: 20px; display: flex; flex-direction: column; gap: 18px; transform: translateY(16px); opacity: 0; pointer-events: none; transition: transform .25s, opacity .25s; }
