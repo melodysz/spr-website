@@ -31,7 +31,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { -webkit-font-smoothing: antialiased; }
+html { -webkit-font-smoothing: antialiased; scrollbar-gutter: stable; } /* keep the page width steady when scrolling locks/unlocks */
 body { background: var(--paper); color: var(--navy); font-family: var(--f-body); overflow-x: clip; }
 a { color: inherit; text-decoration: none; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; text-align: left; }
@@ -90,6 +90,7 @@ img { display: block; }
 /* ───────── Pages ───────── */
 .page { display: none; }
 .page.active { display: block; animation: pageIn .45s ease both; }
+body.intro-on .page.active { animation: none; } /* the homepage intro opens in place; a slide-in would nudge "think" */
 @keyframes pageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .page.dark { background: var(--navy); color: var(--white); }
 
@@ -106,12 +107,26 @@ body.intro-on.intro-visible .nav { transform: translateY(-100%); }
 .intro-seq { position: relative; --lead: 0px; }
 /* Viewport-sized layer pinned over the trail: dark cover, counter, corner labels */
 .intro-frame { position: sticky; top: 0; height: 100vh; margin-bottom: -100vh; z-index: 2; pointer-events: none; overflow: hidden; }
-.intro-dark { position: absolute; inset: 0; background: #00000c; transition: opacity 2.6s ease; } /* navy #1a1a32 after Linear Burn */
+/* Dark cover (navy #1a1a32 after Linear Burn). It gives way to lilac (the hero's top colour) as a rising linear
+   gradient — the background is 3× taller than the screen and slides from its dark third to its lilac third —
+   then fades out, handing over seamlessly to the hero's own background. */
+.intro-dark { position: absolute; inset: 0; background: linear-gradient(to bottom, #00000c 0%, #00000c 33%, #9f90cb 66%, #9f90cb 100%) 0 0 / 100% 300% no-repeat;
+  transition: background-position 1.8s cubic-bezier(.45,0,.25,1), opacity .7s ease; }
+.intro-seq.lilac .intro-dark { background-position: 0 100%; }
 .intro-seq.revealed .intro-dark { opacity: 0; }
 .intro-count { position: absolute; top: 50%; left: 50%; translate: -50% -50%; font-family: var(--f-head); font-weight: 700; font-size: calc(50px * var(--s)); letter-spacing: -0.07em; color: var(--white); font-variant-numeric: tabular-nums; transition: opacity .35s, scale .5s, filter .4s; }
 .intro-count.gone { opacity: 0; scale: .8; filter: blur(6px); }
+/* "Stack" counter: each new percentage arrives in the centre and pushes the earlier ones up, fading as they rise */
+.intro-count-stack { position: absolute; top: 50%; left: 50%; width: 0; height: 0; transition: opacity .35s, filter .4s; }
+.intro-count-stack.gone { opacity: 0; filter: blur(6px); }
+.intro-count-stack p { position: absolute; left: 0; top: 0; translate: -50% -50%; white-space: nowrap;
+  font-family: var(--f-head); font-weight: 700; font-size: calc(50px * var(--s)); letter-spacing: -0.07em; font-variant-numeric: tabular-nums;
+  transform: translateY(calc(var(--k, -1) * -1.1em)); opacity: var(--o, 0); filter: blur(var(--bl, 0px));
+  transition: transform .4s cubic-bezier(.2,.8,.2,1), opacity .4s ease, filter .4s ease; }
 
 /* The tall world the camera travels through (1545px Figma "Hero" frame, scaled like the other stages) */
+.intro-words { position: absolute; left: 0; right: 0; top: var(--lead); height: calc(1545px * var(--s)); overflow: hidden; z-index: 3; pointer-events: none; }
+.intro-words .stage { --h: 1545px; }
 .intro-world { position: relative; z-index: 1; padding-top: var(--lead); background: #9f90cb; }
 /* Gradient stops are Figma's (#c5b6f1 → #b2dbf7 → #d3ffb4) with the Linear Burn darkening already applied */
 /* Gradient stops are Figma's (#c5b6f1 → #b2dbf7 → #d3ffb4) with the Linear Burn darkening already applied */
@@ -121,21 +136,29 @@ body.intro-on.intro-visible .nav { transform: translateY(-100%); }
 .intro-speckles { position: absolute; left: 0; top: 0; width: 1470px; height: 1545px; pointer-events: none; }
 .intro-photo { position: absolute; left: 0; top: 794px; width: 1474px; height: 914px; max-width: none; will-change: transform; } /* main.js adds a slight parallax drift */
 /* Softened copy of the photo, shown only where the photo reaches the top of the screen (main.js moves the mask) */
-.intro-photo-soft { filter: blur(6px); --soft-mask: linear-gradient(transparent, transparent);
+.intro-photo-soft.css-blur { filter: blur(6px); } /* fallback where canvas blur is unsupported */
+.intro-photo-soft { --soft-mask: linear-gradient(transparent, transparent);
   -webkit-mask-image: var(--soft-mask); mask-image: var(--soft-mask); }
+.intro-constellation { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.intro-constellation .c-line { fill: none; stroke: #fdfcf3; stroke-width: 1; }
+.intro-constellation .c-dot { fill: #fdfbef; transform-box: fill-box; transform-origin: center; scale: 0; transition: scale .35s cubic-bezier(.3,1.6,.5,1); }
+.intro-constellation .c-dot.on { scale: 1; }
 .intro-title { position: absolute; left: -13px; top: 1254px; width: 1270.738px; font-family: var(--f-head); font-weight: 700; font-size: 173.125px; line-height: 150px; letter-spacing: -0.07em; color: var(--green); }
 /* Title scrambles in letter by letter (main.js): the real letter stays transparent until it settles,
    while the scramble glyph floats centred over its spot */
 .intro-title { --tt-color: var(--green); }
 .intro-title .c-lime { --tt-color: var(--lime); }
 .intro-title .c-lavender { --tt-color: var(--lavender); }
-.intro-title .tt-word { display: inline-block; white-space: nowrap; }
-.intro-title .tt-ch { position: relative; display: inline-block; color: transparent; }
-.intro-title .tt-ch.set { color: var(--tt-color); }
-.intro-title .tt-sc { position: absolute; left: 50%; top: 0; translate: -50% 0; color: var(--tt-color); }
+.tt-word { display: inline-block; white-space: nowrap; }
+.tt-ch { position: relative; display: inline-block; color: transparent; }
+.tt-ch.set { color: var(--tt-color); }
+.tt-sc { position: absolute; left: 50%; top: 0; translate: -50% 0; color: var(--tt-color); }
+.tw { --tt-color: var(--c); }
+.tw.on.no-in { animation: none; } /* the opening "think" scrambles in instead */
 .tw { position: absolute; translate: -100% 0; font-family: var(--f-head); font-weight: 700; letter-spacing: -0.07em; line-height: normal; white-space: nowrap; color: var(--c);
   opacity: 0; }
-.tw .boil { display: inline-block; filter: url(#boil); } /* boil on the letters; depth blur stays on the word */
+.tw .boil { display: inline-block; filter: url(#boil); }
+.tw.blurry .boil { filter: none; } /* no wobble on words already blurred near the top (saves work) */ /* boil on the letters; depth blur stays on the word */
 .tw.g { font-family: "Faculty Glyphic", var(--f-head); font-weight: 400; }
 .tw.on { opacity: 1; animation: twIn .85s cubic-bezier(.2,.8,.2,1) backwards; }
 @keyframes twIn { from { opacity: 0; filter: blur(10px); transform: translateY(16px) scale(.94); } }
@@ -143,6 +166,10 @@ body.intro-on.intro-visible .nav { transform: translateY(-100%); }
 .intro-replay { position: fixed; left: 16px; bottom: 16px; z-index: 90; padding: 10px 14px; background: var(--navy); color: var(--lime); border: 1.5px solid var(--lime); display: none; transition: background .2s, color .2s; }
 .intro-replay:hover { background: var(--lime); color: var(--navy); }
 body.intro-on .intro-replay { display: block; }
+.intro-line-toggle { bottom: 16px; }
+.intro-count-toggle { bottom: 60px; }
+.intro-seq.no-line .intro-constellation { display: none; }
+.intro-seq.scrolling .tw .boil { filter: none; } /* wobble pauses while scrolling */
 
 /* ───────── Home: Hero ───────── */
 .hero { background: var(--cream); }
@@ -385,17 +412,18 @@ textarea.input { height: 160px; padding: 16px 18px; resize: vertical; line-heigh
 /* ───────── Custom cursor ───────── */
 html.has-cursor, html.has-cursor * { cursor: none !important; }
 /* Settings come from CSS variables so the playground can change them live */
-.cursor { position: fixed; inset: 0; z-index: 1000; pointer-events: none; opacity: 0; transition: opacity .2s;
-  --cc: var(--user-c, var(--green)); --cw: 0.5px; --cop: 1; --csq: 10px; --cb: 1.5px; mix-blend-mode: var(--blend, multiply); }
-.cursor.visible { opacity: 1; }
+/* Performance: the containers have no box of their own (display: contents), so each line, the square and the
+   coordinates is its own small layer with its own blend mode. The browser then blends only those small areas,
+   instead of a full-screen layer over a busy page. */
+.cursor { display: contents; --cc: var(--user-c, var(--green)); --cw: 0.5px; --cop: 1; --csq: 10px; --cb: 1.5px; }
+.cursor > *, .cursor-sq > canvas { position: fixed; left: 0; top: 0; z-index: 1000; pointer-events: none; will-change: transform;
+  opacity: 0; transition: opacity .2s; }
+.cursor > * { mix-blend-mode: var(--blend, multiply); }
+.cursor.visible > *, .cursor-sq.visible > canvas { opacity: 1; }
 .cursor.swap-green.on-green { --cc: var(--navy); }
-/* Lines + square are drawn on this canvas by main.js (rough.js "boil") */
-.cx-line { position: absolute; left: 0; top: 0; will-change: transform; }
-/* Square layer: separate so it can blend differently (main.js sets its blend mode per background) */
-.cursor-sq { position: fixed; inset: 0; z-index: 1000; pointer-events: none; opacity: 0; transition: opacity .2s; mix-blend-mode: multiply; }
-.cursor-sq.visible { opacity: 1; }
-.cursor-sq canvas { position: absolute; left: 0; top: 0; will-change: transform; }
-.cx-xy { position: absolute; left: 0; top: 0; will-change: transform; }
+/* Square: separate so it can blend differently on dark backgrounds (main.js sets its blend mode) */
+.cursor-sq { display: contents; }
+.cursor-sq > canvas { mix-blend-mode: multiply; }
 /* Coordinates sit just off the square's bottom-right corner; flip near the window edges */
 .cx-xy { --gap: calc(var(--csq) / 2 + 6px); width: max-content; padding: var(--gap) 0 0 var(--gap); font-family: var(--f-mono); font-size: 10px; letter-spacing: .4px; line-height: 1.3; color: var(--cc); white-space: pre; font-variant-numeric: tabular-nums; }
 .cursor.flip-x .cx-xy { padding-left: 0; translate: calc(-100% - var(--gap)) 0; text-align: right; }

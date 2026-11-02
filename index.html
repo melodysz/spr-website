@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@700&family=DM+Mono:wght@400;500&family=Faculty+Glyphic&family=Hanken+Grotesk:wght@400&family=Inter:wght@400&family=Unbounded:wght@700&display=swap" rel="stylesheet">
   <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.13/dist/lenis.css">
-  <link rel="stylesheet" href="style.css?v=31">
+  <link rel="stylesheet" href="style.css?v=40">
 </head>
 <body>
 
@@ -51,6 +51,7 @@
     <div class="intro-frame">
       <div class="intro-dark"></div>
       <p class="intro-count" id="intro-count">0%</p>
+      <div class="intro-count-stack" id="intro-stack" aria-hidden="true"></div>
     </div>
     <div class="intro-world">
       <canvas class="intro-speckles-lead" aria-hidden="true"></canvas>
@@ -61,10 +62,21 @@
           <!-- Figma's photo layer exported with its progressive blur, transparency recovered from black/white exports,
                and the Linear Burn darkening baked in -->
           <img class="intro-photo" src="assets/pexels-grass-blur.png" alt="Two people standing on a grassy hill">
-          <img class="intro-photo intro-photo-soft" src="assets/pexels-grass-blur.png" alt="" aria-hidden="true">
+          <canvas class="intro-photo intro-photo-soft" width="1474" height="914" aria-hidden="true"></canvas>
           <p class="intro-title">Scientists for <span class="c-lime">Public</span> <span class="c-lavender">Research</span></p>
-          <!-- trail words are added by main.js -->
         </div>
+      </div>
+    </div>
+    <!-- Words + constellation line sit on their own layer above the dark cover, so "think" can unscramble on the dark -->
+    <div class="intro-words">
+      <div class="stage" id="intro-words-stage">
+        <!-- Constellation line from Figma: drawn in step with the camera, dots pop in at each pivot; main.js boils it -->
+          <svg class="intro-constellation" width="1470" height="1545" viewBox="0 0 1470 1545" aria-hidden="true">
+            <g>
+              <polyline class="c-line" data-points="750.5,92.45 656,192.45 873,362.95 656,599.45 1072,793.95 945,967.45 1114,1248.95"/>
+            </g>
+          </svg>
+        <!-- trail words are added by main.js -->
       </div>
     </div>
   </div>
@@ -480,7 +492,8 @@
 <div class="cursor-sq" id="cursor-sq" aria-hidden="true"><canvas></canvas></div>
 
 <!-- Cursor playground (press C or use the button) -->
-<button class="intro-replay mono-s" id="intro-replay" data-dev-ui>↺ Replay intro</button>
+<button class="intro-replay intro-line-toggle mono-s" id="intro-line-toggle" data-dev-ui>◇ Line: on</button>
+<button class="intro-replay intro-count-toggle mono-s" id="intro-count-toggle" data-dev-ui>% Style: off</button>
 <button class="pg-toggle mono-s" id="pg-toggle" data-dev-ui>✛ Cursor playground</button>
 <aside class="pg" id="pg" data-dev-ui data-lenis-prevent aria-label="Cursor playground">
   <div class="pg-head"><p class="mono semi c-lime">Cursor playground</p><button class="mono-s pg-x" id="pg-close">Close ✕</button></div>
@@ -539,6 +552,6 @@
 
 <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
 <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-<script src="main.js?v=35"></script>
+<script src="main.js?v=54"></script>
 </body>
 </html>

@@ -1,6 +1,8 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Don't let the browser restore the old scroll position on reload: it lands after the page loads, mid-intro
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
 /* ───────── Art stages scale to the viewport (designed at 1470px wide) ───────── */
 function fitStages() {
@@ -76,7 +78,7 @@ const NAV_H = () => $('#nav').offsetHeight;
     hovering = !!t?.closest('a, button, .has-letter, .cw-deco, .chip, .legend-item');
     el.classList.toggle('on-green', !!t?.closest('.footer, .founders, .bg-green, .btn-green'));
     dark = isDark(t);
-    sqEl.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
+    sqCanvas.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
     dirty = true;
   }
 
@@ -126,10 +128,7 @@ const NAV_H = () => $('#nav').offsetHeight;
     const pad = n => String(Math.round(n)).padStart(4, '0');
     xy.textContent = `X ${pad(mx + scrollX)}\nY ${pad(my + scrollY)}`;
   }
-  addEventListener('scroll', () => {
-    showCoords();
-    if (mx >= 0) updateUnder(document.elementFromPoint(mx, my)); // background under a still cursor changes while scrolling
-  }, { passive: true });
+  addEventListener('scroll', showCoords, { passive: true }); // (what's under the cursor is re-checked in the loop)
 
   // Position: use the lowest-latency event the browser offers; moving only slides the canvases
   function move(e) {
@@ -166,7 +165,7 @@ const NAV_H = () => $('#nav').offsetHeight;
     el.style.setProperty('--user-c', cfg.color);
     resize(); // square canvas size follows the square-size setting
     el.style.setProperty('--blend', cfg.blend);
-    sqEl.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
+    sqCanvas.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
     $$('#pg-dark-blends button').forEach(b => b.classList.toggle('on', b.dataset.v === cfg.darkBlend));
     $('#pg-dark-name').textContent = '· ' + cfg.darkBlend;
     el.style.setProperty('--cw', cfg.cw + 'px');
@@ -689,15 +688,16 @@ $('#contact-form').addEventListener('submit', e => {
    3. the page glides down after each word while the dark lifts to lilac, then the gradient
    4. camera lands on the photo, words turn white, scrolling unlocks */
 const intro = (function () {
-  const el = $('#intro'), stage = $('#intro-stage'), count = $('#intro-count');
+  const el = $('#intro'), stage = $('#intro-words-stage'), count = $('#intro-count'), stack = $('#intro-stack');
 
   // [word, right edge x, top y, font size, colour, asterisk?] — positions from the Figma "Hero" frame
   const TRAIL = [
-    ['think', 764, 26, 40, '#2fdbb2'],
+    ['think', 800, 52, 40, '#2fdbb2'],
     ['*', 707, 75, 96, '#b3f00d', true],
     ['wonder', 705, 150, 32, '#ddd2fa'],
-    ['*', 668, 205, 72.192, '#dafe7a', true],
-    ['explore', 853, 212, 40, '#b3f00d'],
+    ['*', 640, 182, 72.192, '#dafe7a', true],
+    ['explore', 778, 208, 40, '#b3f00d'],
+    ['discover', 848, 265, 32, '#2fdbb2'],
     ['investigate', 958, 304, 40, '#8cebd7'],
     ['*', 972, 360.83, 80, '#dafe7a', true],
     ['research', 905, 373, 40, '#2fdbb2'],
@@ -722,74 +722,134 @@ const intro = (function () {
     stage.appendChild(w);
     return { el: w, star, cy: y + size * 0.61 };
   });
-  const FIRST = { x: 722, y: 50.5 }; // centre of the first "think"
+  const FIRST = { x: 758, y: 76.5 }; // centre of the first "think"
 
-  // Hero title: split into letters (kept inside word wrappers so lines only break between words)
-  const title = $('.intro-title', el);
-  let letterIndex = 0;
-  (function splitLetters(node) {
-    for (const child of [...node.childNodes]) {
-      if (child.nodeType === 1) { splitLetters(child); continue; }
-      const frag = document.createDocumentFragment();
-      for (const part of child.textContent.split(/(\s+)/)) {
-        if (!part) continue;
-        if (/^\s+$/.test(part)) { frag.append(part); continue; }
-        const word = document.createElement('span');
-        word.className = 'tt-word';
-        for (const ch of part) {
-          const l = document.createElement('span');
-          l.className = 'tt-ch';
-          l.textContent = ch;
-          l.style.setProperty('--i', letterIndex++);
-          word.append(l);
-        }
-        frag.append(word);
-      }
-      child.replaceWith(frag);
+  // Constellation line: revealed by camera progress (0 → 1), so it's drawn as the camera travels, not word by word.
+  // Boil: every 150ms the line is re-drawn through slightly nudged points (hand-drawn wobble, no costly filter).
+  const cLine = $('.c-line', el);
+  const cPts = cLine.dataset.points.trim().split(/\s+/).map(p => p.split(',').map(Number));
+  const cDots = cPts.map(([x, y]) => {
+    const d = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    d.setAttribute('class', 'c-dot'); d.setAttribute('cx', x); d.setAttribute('cy', y); d.setAttribute('r', 5);
+    cLine.parentNode.append(d);
+    return d;
+  });
+  const cCum = [0];
+  for (let i = 1; i < cPts.length; i++) cCum.push(cCum[i - 1] + Math.hypot(cPts[i][0] - cPts[i - 1][0], cPts[i][1] - cPts[i - 1][1]));
+  const cLen = cCum[cCum.length - 1];
+  let cDrawn = 0, cJitterLen = cLen;
+  function boilLine() {
+    const j = () => (Math.random() - 0.5) * 1.6; // ±0.8px
+    const out = [];
+    for (let i = 0; i < cPts.length; i++) {
+      const [x, y] = cPts[i];
+      out.push([x + j(), y + j()]);
+      if (i === cPts.length - 1) break;
+      // a few in-between points along each segment, each nudged sideways a touch
+      const [x2, y2] = cPts[i + 1], len = Math.hypot(x2 - x, y2 - y), n = Math.max(1, Math.floor(len / 40));
+      const nx = -(y2 - y) / len, ny = (x2 - x) / len;
+      for (let k = 1; k < n; k++) { const f = k / n, o = j() * 0.9; out.push([x + (x2 - x) * f + nx * o, y + (y2 - y) * f + ny * o]); }
     }
-  })(title);
+    cLine.setAttribute('points', out.map(([x, y]) => x.toFixed(1) + ',' + y.toFixed(1)).join(' '));
+    cJitterLen = cLine.getTotalLength();
+    cLine.style.strokeDasharray = cJitterLen;
+    cLine.style.strokeDashoffset = cJitterLen * (1 - cDrawn / cLen);
+    cDots.forEach((d, i) => { d.setAttribute('cx', (cPts[i][0] + j() * 0.6).toFixed(1)); d.setAttribute('cy', (cPts[i][1] + j() * 0.6).toFixed(1)); });
+  }
+  function drawLine(progress) {
+    const len = Math.max(0, Math.min(1, progress)) * cLen;
+    if (Math.abs(len - cDrawn) < 0.5 && len !== 0 && len !== cLen) return;
+    cDrawn = len;
+    cLine.style.strokeDashoffset = cJitterLen * (1 - len / cLen);
+    cDots.forEach((d, i) => d.classList.toggle('on', len >= cCum[i] - 0.5 && (len > 0 || i === 0)));
+  }
+  boilLine();
+  drawLine(0);
+  if (!reduceMotion) setInterval(() => { if (document.body.classList.contains('intro-visible') && !el.classList.contains('scrolling') && !el.classList.contains('no-line')) boilLine(); }, 150);
 
-  // Scramble-in: each letter flashes a block cursor (░▒▓), cycles random characters, then settles — left to right.
-  // The scramble glyph floats over the letter's real spot, so the title never jitters in width.
-  const letters = $$('.tt-ch', title).map(l => { const g = document.createElement('span'); g.className = 'tt-sc'; l.append(g); return { l, g, ch: l.firstChild.textContent }; });
+  // Letter scramble, shared by the hero title and the opening "think". Letters are wrapped (inside word wrappers so
+  // lines only break between words); the scramble glyph floats over each letter's real spot, so nothing jitters.
   const SCRAMBLE_PRESETS = {
     // in use: letters pop in at random, each flicking through a few faint characters
     light: { order: 'random', spread: 900, cursor: 0, cycle: 170, tick: 55, chars: 'abcdefghijklmnopqrstuvwxyz', glyphOpacity: 0.55 },
+    // the opening "think": same feel, a touch slower since it's alone on screen
+    // all letters scramble together at full strength, then lock in one by one (random order)
+    think: { order: 'random', together: true, spread: 520, cursor: 0, cycle: 560, tick: 60, chars: 'abcdefghijklmnopqrstuvwxyz', glyphOpacity: 1 },
     // saved for later: left to right, block cursor ░▒▓█ then a longer scramble
     intense: { order: 'sequential', stagger: 45, cursor: 90, cycle: 320, tick: 50, chars: 'abcdefghijklmnopqrstuvwxyz#%&*?01', cursorChars: '░▒▓█', glyphOpacity: 1 },
   };
-  const SCRAMBLE = SCRAMBLE_PRESETS.light;
-  let scrambleToken = 0;
-  function hideTitle() { scrambleToken++; letters.forEach(({ l, g }) => { l.classList.remove('set'); g.textContent = ''; }); }
-  function settleTitle() { scrambleToken++; letters.forEach(({ l, g }) => { l.classList.add('set'); g.textContent = ''; }); }
-  function scrambleTitle() {
-    if (reduceMotion) return settleTitle();
-    const my = ++scrambleToken, t0 = performance.now();
-    const rand = (i, step) => { const x = Math.sin(i * 127.1 + step * 311.7 + my * 17.3) * 43758.5453; return x - Math.floor(x); };
-    // start times: evenly spread but shuffled (random order), or one after another
-    const starts = letters.map((_, i) => SCRAMBLE.order === 'random' ? i / (letters.length - 1) * SCRAMBLE.spread : i * SCRAMBLE.stagger);
-    if (SCRAMBLE.order === 'random') for (let i = starts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [starts[i], starts[j]] = [starts[j], starts[i]]; }
-    letters.forEach(({ g }) => { g.style.opacity = SCRAMBLE.glyphOpacity; });
-    requestAnimationFrame(function step(now) {
-      if (my !== scrambleToken) return;
-      let pending = false;
-      letters.forEach(({ l, g }, i) => {
-        if (l.classList.contains('set')) return;
-        const t = now - t0 - starts[i];
-        if (t < 0) { pending = true; return; }
-        if (t < SCRAMBLE.cursor) {
-          g.textContent = SCRAMBLE.cursorChars[Math.min(3, Math.floor(t / SCRAMBLE.cursor * 4))];
-        } else if (t < SCRAMBLE.cursor + SCRAMBLE.cycle) {
-          const k = Math.floor((t - SCRAMBLE.cursor) / SCRAMBLE.tick);
-          g.textContent = SCRAMBLE.chars[Math.floor(rand(i, k) * SCRAMBLE.chars.length)];
-        } else {
-          g.textContent = ''; l.classList.add('set'); return;
+  function makeScrambler(root) {
+    (function splitLetters(node) {
+      for (const child of [...node.childNodes]) {
+        if (child.nodeType === 1) { splitLetters(child); continue; }
+        const frag = document.createDocumentFragment();
+        for (const part of child.textContent.split(/(\s+)/)) {
+          if (!part) continue;
+          if (/^\s+$/.test(part)) { frag.append(part); continue; }
+          const word = document.createElement('span');
+          word.className = 'tt-word';
+          for (const ch of part) {
+            const l = document.createElement('span');
+            l.className = 'tt-ch';
+            l.textContent = ch;
+            word.append(l);
+          }
+          frag.append(word);
         }
-        pending = true;
+        child.replaceWith(frag);
+      }
+    })(root);
+    const letters = $$('.tt-ch', root).map(l => { const g = document.createElement('span'); g.className = 'tt-sc'; l.append(g); return { l, g }; });
+    let token = 0;
+    const hide = () => { token++; letters.forEach(({ l, g }) => { l.classList.remove('set'); g.textContent = ''; }); };
+    const settle = () => { token++; letters.forEach(({ l, g }) => { l.classList.add('set'); g.textContent = ''; }); };
+    const duration = P => (P.order === 'random' ? P.spread : (letters.length - 1) * P.stagger) + P.cursor + P.cycle; // same for `together`
+    function play(P) {
+      if (reduceMotion) return settle();
+      const my = ++token;
+      // scramble time only moves forward with frames that actually get drawn (≤ 34ms per frame), so if the browser is
+      // busy (e.g. a fresh, uncached load) the scramble plays a little slower instead of finishing unseen
+      let clock = 0, lastFrame = null;
+      const rand = (i, step) => { const x = Math.sin(i * 127.1 + step * 311.7 + my * 17.3) * 43758.5453; return x - Math.floor(x); };
+      // start times: evenly spread but shuffled (random order), or one after another
+      const starts = letters.map((_, i) => P.order === 'random' ? (letters.length > 1 ? i / (letters.length - 1) : 0) * P.spread : i * P.stagger);
+      if (P.order === 'random') for (let i = starts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [starts[i], starts[j]] = [starts[j], starts[i]]; }
+      letters.forEach(({ g }) => { g.style.opacity = P.glyphOpacity; });
+      requestAnimationFrame(function step(frameTime) {
+        if (my !== token) return;
+        clock += lastFrame === null ? 0 : Math.min(34, frameTime - lastFrame);
+        lastFrame = frameTime;
+        const now = clock, t0 = 0;
+        let pending = false;
+        letters.forEach(({ l, g }, i) => {
+          if (l.classList.contains('set')) return;
+          // together: every letter starts scrambling at once and keeps going until its own (shuffled) lock-in time
+          const t = P.together ? now - t0 : now - t0 - starts[i];
+          const cycleEnd = P.together ? P.cycle + starts[i] : P.cycle;
+          if (t < 0) { pending = true; return; }
+          if (t < P.cursor) {
+            g.textContent = P.cursorChars[Math.min(3, Math.floor(t / P.cursor * 4))];
+          } else if (t < P.cursor + cycleEnd) {
+            const k = Math.floor((t - P.cursor) / P.tick);
+            g.textContent = P.chars[Math.floor(rand(i, k) * P.chars.length)];
+          } else {
+            g.textContent = ''; l.classList.add('set'); return;
+          }
+          pending = true;
+        });
+        if (pending) requestAnimationFrame(step);
       });
-      if (pending) requestAnimationFrame(step);
-    });
+    }
+    return { letters, hide, settle, play, duration };
   }
+
+  const title = $('.intro-title', el);
+  const titleScr = makeScrambler(title);
+  const letters = titleScr.letters;
+  const hideTitle = titleScr.hide, settleTitle = titleScr.settle, scrambleTitle = () => titleScr.play(SCRAMBLE_PRESETS.light);
+  // the opening "think" scrambles in on the dark screen instead of fading in
+  words[0].el.classList.add('no-in');
+  const thinkScr = makeScrambler($('.boil', words[0].el));
 
   // Space above the trail. While the intro plays it's big enough for the first "think" to land exactly where the
   // counter sits (screen centre); afterwards it shrinks to a little breathing room above the hero.
@@ -799,8 +859,8 @@ const intro = (function () {
     const s = scale();
     lead = collapsed ? TOP_ROOM * s : Math.max(TOP_ROOM * s, innerHeight / 2 - FIRST.y * s);
     el.style.setProperty('--lead', lead + 'px');
-    count.style.left = `calc(50% + ${(FIRST.x - 735) * s}px)`;
-    if (speckReady) { sizeSpeckles(); drawSpeckles(); }
+    count.style.left = stack.style.left = `calc(50% + ${(FIRST.x - 735) * s}px)`;
+    if (speckReady) { sizeSpeckles(); drawSpeckles(true); }
   }
 
   // Flickering speckles: dots in the trail's colours over the gradient. Every ~quarter second about a third
@@ -830,7 +890,7 @@ const intro = (function () {
     return {
       size() {
         w = stageW(); h = stageH();
-        const k = (devicePixelRatio || 1) * scale(); // crisp on retina, drawn in stage px
+        const k = Math.min(devicePixelRatio || 1, 1.5) * scale(); // drawn in stage px; ≤1.5× resolution is plenty for tiny dots
         canvas.width = Math.max(1, Math.round(w * k));
         canvas.height = Math.max(1, Math.round(h * k));
         ctx.setTransform(k, 0, 0, k, 0, 0);
@@ -838,10 +898,17 @@ const intro = (function () {
         dots = Array.from({ length: n }, newDot);
       },
       churn() { for (let i = 0; i < dots.length; i++) if (Math.random() < SPECKLE_CHURN) dots[i] = newDot(); },
-      // depth: whether to soften dots near the top of the screen
-      draw(depth) {
-        ctx.clearRect(0, 0, w, h);
+      // depth: whether to soften dots near the top of the screen. Without `force`, it skips the redraw unless the
+      // blur zone has moved over this canvas by a few px (most scroll frames change nothing visible here).
+      blurred: false, lastTop: null,
+      draw(depth, force) {
         const s = scale(), top = canvas.getBoundingClientRect().top;
+        const inZone = depth && top < innerHeight * DEPTH_ZONE;
+        if (!force && !inZone && !this.blurred) return;
+        if (!force && inZone && this.lastTop !== null && Math.abs(top - this.lastTop) < 4) return;
+        this.lastTop = top;
+        this.blurred = inZone;
+        ctx.clearRect(0, 0, w, h);
         for (const dot of dots) {
           const blur = depth ? depthAt(top + dot.y * s) / s : 0; // in stage px
           if (blur < 0.3) {
@@ -861,52 +928,85 @@ const intro = (function () {
   const leadSpeckles = speckleField($('.intro-speckles-lead', el), () => innerWidth / scale(), () => lead / scale());
   let speckReady = true, depthOn = true;
   function sizeSpeckles() { heroSpeckles.size(); leadSpeckles.size(); }
-  function drawSpeckles() { heroSpeckles.draw(depthOn); leadSpeckles.draw(depthOn); }
-  function churnSpeckles() { heroSpeckles.churn(); leadSpeckles.churn(); drawSpeckles(); }
+  function drawSpeckles(force) { heroSpeckles.draw(depthOn, force); leadSpeckles.draw(depthOn, force); }
+  function churnSpeckles() { heroSpeckles.churn(); leadSpeckles.churn(); drawSpeckles(true); }
   const softPhoto = $('.intro-photo-soft', el);
+  // Bake the softened photo once (canvas blur) so the browser doesn't re-blur it every frame
+  // resolves once the photo is decoded and its soft copy baked (the intro waits for this)
+  const photoReady = (async function bakeSoftPhoto() {
+    const src = $('img.intro-photo', el), ctx = softPhoto.getContext('2d');
+    if (!(src.complete && src.naturalWidth)) await new Promise(r => src.addEventListener('load', r, { once: true }));
+    try { await src.decode(); } catch {}
+    const canBlur = typeof ctx.filter === 'string';
+    if (canBlur) ctx.filter = 'blur(6px)'; else softPhoto.classList.add('css-blur');
+    ctx.drawImage(src, 0, 0, softPhoto.width, softPhoto.height);
+  })();
+  let lastMask = '', titleBlurred = false;
   function blurWords() {
-    const s = scale();
-    const blurEl = (node, px) => { node.style.filter = px > 0.2 ? `blur(${px.toFixed(1)}px)` : ''; };
-    for (const w of words) {
-      if (!w.el.classList.contains('on')) continue;
-      const r = w.el.getBoundingClientRect();
-      blurEl(w.el, depthOn ? depthAt(r.top + r.height / 2) / s : 0);
-    }
-    // title letters blur individually, like the words
-    for (const { l } of letters) {
-      const r = l.getBoundingClientRect();
-      blurEl(l, depthOn && r.top < innerHeight * DEPTH_ZONE ? depthAt(r.top + r.height / 2) / s : 0);
-    }
-    // photo: the softened copy fades in toward the top of the screen (mask measured in the photo's own px)
+    const s = scale(), zone = innerHeight * DEPTH_ZONE;
+    // read every position first (reading between writes would force the page to re-layout each time)
+    const shown = words.filter(w => w.el.classList.contains('on'));
+    const wordRects = shown.map(w => w.el.getBoundingClientRect());
+    const titleRect = title.getBoundingClientRect();
+    const doLetters = depthOn && titleRect.top < zone || titleBlurred;
+    const letterRects = doLetters ? letters.map(({ l }) => l.getBoundingClientRect()) : null;
     const pr = softPhoto.getBoundingClientRect();
-    if (!depthOn || pr.top > innerHeight * DEPTH_ZONE) softPhoto.style.setProperty('--soft-mask', 'linear-gradient(transparent, transparent)');
-    else {
-      const a = (-pr.top) / s, b = (innerHeight * DEPTH_ZONE - pr.top) / s;
-      softPhoto.style.setProperty('--soft-mask', `linear-gradient(to bottom, #000 ${a.toFixed(1)}px, transparent ${b.toFixed(1)}px)`);
+    // then write, only where the (quarter-pixel-rounded) blur actually changed
+    const setBlur = (node, px) => {
+      const v = px > 0.3 ? Math.round(px * 2) / 2 : 0; // half-pixel steps: fewer repaints, same look
+      if (node._blur === v) return;
+      node._blur = v;
+      node.style.filter = v ? `blur(${v}px)` : '';
+    };
+    shown.forEach((w, i) => {
+      const r = wordRects[i], px = depthOn ? depthAt(r.top + r.height / 2) / s : 0;
+      setBlur(w.el, px);
+      w.el.classList.toggle('blurry', px > 0.6); // the boil wobble pauses where it can't be seen anyway
+    });
+    if (doLetters) {
+      titleBlurred = false;
+      letters.forEach(({ l }, i) => {
+        const r = letterRects[i], px = depthOn && r.top < zone ? depthAt(r.top + r.height / 2) / s : 0;
+        if (px > 0.2) titleBlurred = true;
+        setBlur(l, px);
+      });
     }
+    // photo: the softened copy fades in toward the top of the screen (mask in the photo's own px, 4px steps)
+    let mask = 'linear-gradient(transparent, transparent)';
+    if (depthOn && pr.top < zone) {
+      const step = v => Math.round(v / 12) * 12; // mask moves in 12px steps (soft gradient hides it)
+      mask = `linear-gradient(to bottom, #000 ${step(-pr.top / s)}px, transparent ${step((zone - pr.top) / s)}px)`;
+    }
+    if (mask !== lastMask) { lastMask = mask; softPhoto.style.setProperty('--soft-mask', mask); }
   }
   addEventListener('resize', layout);
   layout();
 
-  let lastSpeck = 0, lastScroll = -1;
-  const photo = $('.intro-photo:not(.intro-photo-soft)', el), PHOTO_PARALLAX = 0.1;
+  let lastSpeck = 0, lastScroll = -1, scrollStill = null;
+  const photo = $('img.intro-photo', el), PHOTO_PARALLAX = -0.07; // negative = moves faster than the page
   requestAnimationFrame(function fx(now) {
     requestAnimationFrame(fx);
     if (!document.body.classList.contains('intro-on')) return;
     const visible = document.body.classList.contains('intro-visible');
     const wantDepth = visible || playing; // the nav bar slides in when the intro leaves → blur off
-    if (wantDepth !== depthOn) { depthOn = wantDepth; blurWords(); drawSpeckles(); }
+    if (wantDepth !== depthOn) { depthOn = wantDepth; blurWords(); drawSpeckles(true); }
     if (!visible) return;
     const moved = scrollY !== lastScroll;
     lastScroll = scrollY;
-    if (!reduceMotion && now - lastSpeck > SPECKLE_TICK) { lastSpeck = now; churnSpeckles(); }
-    else if (moved) drawSpeckles(); // blur follows the dots as the page moves
+    if (!reduceMotion && now - lastSpeck > SPECKLE_TICK) { lastSpeck = now; churnSpeckles(); } // blur zone is re-applied on each beat
+    // pause the word/line wobble while you scroll (the motion hides it anyway); it resumes as soon as you stop
+    if (moved && !playing) {
+      el.classList.add('scrolling');
+      clearTimeout(scrollStill);
+      scrollStill = setTimeout(() => el.classList.remove('scrolling'), 180);
+    }
     if (moved || playing) blurWords();
-    // Photo parallax: lines up with Figma when the camera lands; drifts slightly slower than the page around that
+    // Photo parallax: lines up with Figma when the camera lands; moves a little faster than the page around that
     if (!reduceMotion) photo.style.transform = softPhoto.style.transform = `translateY(${(scrollY - endY()) * PHOTO_PARALLAX / scale()}px)`;
   });
 
-  const endY = () => Math.max(0, el.offsetTop + el.offsetHeight - innerHeight);
+  // exact bottom of the hero (sub-pixel), rounded down so the next section never peeks in at the bottom
+  const endY = () => Math.max(0, Math.floor(el.getBoundingClientRect().bottom + scrollY - innerHeight));
   const cameraFor = cy => Math.max(0, Math.min(endY(), el.offsetTop + lead + cy * scale() - innerHeight / 2));
   const jumpTo = y => lenis ? lenis.scrollTo(y, { immediate: true, force: true }) : scrollTo(0, y);
 
@@ -931,7 +1031,13 @@ const intro = (function () {
   // Its ease-in-out curve is fitted each play so it tracks where the words appear,
   // without ever snapping to a word.
   const LANDING = 1700; // ms the camera keeps travelling after the last word, easing onto the photo
-  let playing = false, token = 0, cam = null;
+  let playing = false, token = 0, cam = null, countMode = 'off';
+  const LILAC_SWEEP = 1800; // ms for the dark → lilac gradient to rise
+  const DARK_HOLD = 450;    // ms of plain dark screen before "think" starts unscrambling
+  const pageReady = Promise.all([
+    document.readyState === 'complete' ? null : new Promise(r => addEventListener('load', r, { once: true })),
+    document.fonts ? document.fonts.ready : null,
+  ]);
 
   function fitCamera() {
     const T = SCHEDULE[SCHEDULE.length - 1] + LANDING, end = endY();
@@ -951,7 +1057,9 @@ const intro = (function () {
     requestAnimationFrame(camLoop);
     if (!playing || !cam) return;
     const u = Math.min(1, (now - cam.start) / cam.T);
-    scrollTo(0, cam.end * bezierY(u, cam.x1, 0, cam.x2, 1));
+    const travel = bezierY(u, cam.x1, 0, cam.x2, 1);
+    scrollTo(0, cam.end * travel);
+    drawLine(travel);
   });
 
   function lock(on) {
@@ -959,17 +1067,20 @@ const intro = (function () {
     if (on) lenis?.stop(); else lenis?.start();
   }
   function collapseLead() {
-    const before = lead;
+    const before = lead, atEnd = Math.abs(scrollY - endY()) < 3;
     collapsed = true;
     layout();
     const removed = before - lead;
-    if (removed > 0 && scrollY > 0) jumpTo(Math.max(0, scrollY - removed)); // keep the same view, no jump
+    if (removed > 0 && scrollY > 0) jumpTo(atEnd ? endY() : Math.max(0, Math.round(scrollY - removed))); // keep the same view, no jump
   }
   function showAll() {
     words.forEach(w => w.el.classList.add('on'));
     count.classList.add('gone');
-    el.classList.add('revealed', 'whiten');
+    stack.classList.add('gone');
+    el.classList.add('revealed', 'lilac', 'whiten');
     settleTitle();
+    thinkScr.settle();
+    drawLine(1);
     collapseLead();
   }
   function finish() {
@@ -978,16 +1089,22 @@ const intro = (function () {
     el.classList.remove('playing');
     el.classList.add('done');
     collapseLead();
+    requestAnimationFrame(() => { if (Math.abs(scrollY - endY()) < 40) jumpTo(endY()); }); // settle exactly on the hero's bottom edge
   }
 
   async function play() {
     const my = ++token, alive = () => my === token;
     const wait = ms => new Promise(r => setTimeout(r, ms));
-    el.classList.remove('revealed', 'whiten', 'done');
+    el.classList.remove('revealed', 'lilac', 'whiten', 'done');
     hideTitle();
+    thinkScr.hide();
+    drawLine(0);
     words.forEach(w => { w.el.classList.remove('on'); w.el.style.filter = ''; });
     count.classList.remove('gone');
     count.textContent = '0%';
+    stack.replaceChildren();
+    stack.classList.remove('gone');
+    count.style.visibility = countMode === 'swap' ? '' : 'hidden';
     collapsed = false;
     layout();
     jumpTo(0);
@@ -995,25 +1112,80 @@ const intro = (function () {
     lock(true);
     playing = true;
     el.classList.add('playing');
+    // let the page finish loading (photo, fonts) so the opening isn't missed, then hold on the dark screen a moment
+    await Promise.race([Promise.all([pageReady, photoReady]), wait(8000)]); if (!alive()) return;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); // two drawn frames on the dark screen first
+    layout();
+    jumpTo(0); // re-anchor at the top right before the opening (in case anything scrolled the page while loading)
+    await wait(DARK_HOLD); if (!alive()) return;
 
-    // 1. counter 0 → 100% (eases in and out)
-    const t0 = performance.now(), DUR = 1500;
-    await new Promise(done => requestAnimationFrame(function step(now) {
-      if (!alive()) return done();
-      const p = Math.min(1, (now - t0) / DUR);
-      const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
-      count.textContent = Math.round(e * 100) + '%';
-      p < 1 ? requestAnimationFrame(step) : done();
-    }));
-    await wait(200); if (!alive()) return;
+    // 1. counter 0 → 100%; its colour blends white → lime → green along the way
+    const STOPS = [[255, 255, 255], [0xc6, 0xf2, 0x21], [0x00, 0xd3, 0x7f]];
+    const counterColor = p => {
+      const f = p * (STOPS.length - 1), i = Math.min(STOPS.length - 2, Math.floor(f)), t = f - i;
+      const c = STOPS[i].map((v, k) => Math.round(v + (STOPS[i + 1][k] - v) * t));
+      return `rgb(${c.join(',')})`;
+    };
+    const ease = p => p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+    const HOLD_ZERO = 700; // 0% lingers this long before the count gets going
+    let t0 = performance.now();
+    const DUR = countMode === 'stack' ? 1800 : 1500;
+    if (countMode === 'off') {
+      // no percentages: go straight to the montage
+    } else if (countMode === 'swap') {
+      // "swap": one number counting up in place
+      count.style.color = counterColor(0);
+      count.textContent = '0%';
+      await wait(HOLD_ZERO); if (!alive()) return;
+      t0 = performance.now();
+      await new Promise(done => requestAnimationFrame(function step(now) {
+        if (!alive()) return done();
+        const p = Math.min(1, (now - t0) / DUR), e = ease(p);
+        count.textContent = Math.round(e * 100) + '%';
+        count.style.color = counterColor(e);
+        p < 1 ? requestAnimationFrame(step) : done();
+      }));
+    } else {
+      // "stack": ~13 uneven jumps; each new number arrives in the centre and pushes the earlier ones up
+      const N = 13, weights = Array.from({ length: N - 1 }, () => 0.4 + Math.random());
+      const total = weights.reduce((a, b) => a + b, 0);
+      const values = [0];
+      weights.forEach(w => values.push(Math.min(100, values[values.length - 1] + w / total * 100)));
+      const ints = values.map((v, i) => i === N - 1 ? 100 : Math.round(v)).filter((v, i, arr) => i === 0 || v > arr[i - 1]);
+      const entries = [];
+      for (let i = 0; i < ints.length; i++) {
+        await wait(t0 + (i ? HOLD_ZERO : 0) + DUR * ease(i / (ints.length - 1)) - performance.now()); if (!alive()) return;
+        const p = document.createElement('p');
+        p.textContent = ints[i] + '%';
+        p.style.color = counterColor(ints[i] / 100);
+        stack.append(p);
+        entries.push(p);
+        p.getBoundingClientRect(); // start the new number just below centre, then slide everything up
+        entries.forEach((e, j) => {
+          const k = entries.length - 1 - j;
+          e.style.setProperty('--k', k);
+          e.style.setProperty('--o', [1, 0.5, 0.28, 0.15, 0.07][k] ?? 0);
+          e.style.setProperty('--bl', (k * 0.8) + 'px');
+        });
+        while (entries.length > 7) entries.shift().remove();
+      }
+    }
+    if (countMode !== 'off') { await wait(200); if (!alive()) return; }
 
     // 2–3. counter turns into "think", then the trail meanders down on a steady, quickening beat,
     //       while the camera glides down on its own accelerating curve
     count.classList.add('gone');
-    el.classList.add('revealed');
+    stack.classList.add('gone');
+    // "think" unscrambles alone on the dark screen…
+    words[0].el.classList.add('on');
+    thinkScr.play(SCRAMBLE_PRESETS.think);
+    await wait(thinkScr.duration(SCRAMBLE_PRESETS.think) + 300); if (!alive()) return;
+    // …then the dark gives way to lilac as a rising gradient, and the trail + camera get going
+    el.classList.add('lilac');
+    setTimeout(() => alive() && el.classList.add('revealed'), LILAC_SWEEP);
     const start = performance.now();
     cam = { ...fitCamera(), start };
-    for (let i = 0; i < words.length; i++) {
+    for (let i = 1; i < words.length; i++) {
       await wait(start + SCHEDULE[i] - performance.now()); if (!alive()) return;
       words[i].el.classList.add('on');
     }
@@ -1033,10 +1205,29 @@ const intro = (function () {
     finish();
     jumpTo(endY());
   }
-  $('#intro-replay').addEventListener('click', () => {
-    if (location.hash.replace(/^#\/?/, '')) location.hash = '#/';
-    requestAnimationFrame(play);
-  });
+  // Dev control: percentage style — "stack" (numbers push up) or "swap" (one number in place)
+  const countBtn = $('#intro-count-toggle');
+  const COUNT_MODES = ['off', 'stack', 'swap']; // off = no percentages, the intro opens straight on "think"
+  const setCountMode = mode => {
+    countMode = mode;
+    countBtn.textContent = '% Style: ' + mode;
+    try { localStorage.setItem('spr-intro-count-v2', mode); } catch {}
+  };
+  try { const saved = localStorage.getItem('spr-intro-count-v2'); countMode = COUNT_MODES.includes(saved) ? saved : 'off'; } catch {}
+  setCountMode(countMode);
+  countBtn.addEventListener('click', () => setCountMode(COUNT_MODES[(COUNT_MODES.indexOf(countMode) + 1) % COUNT_MODES.length]));
+
+  // Dev control: show/hide the constellation line (remembered in this browser)
+  const lineBtn = $('#intro-line-toggle');
+  const setLine = on => {
+    el.classList.toggle('no-line', !on);
+    lineBtn.textContent = on ? '◇ Line: on' : '◇ Line: off';
+    try { localStorage.setItem('spr-intro-line', on ? '1' : '0'); } catch {}
+  };
+  let lineOn = true;
+  try { lineOn = localStorage.getItem('spr-intro-line') !== '0'; } catch {}
+  setLine(lineOn);
+  lineBtn.addEventListener('click', () => { lineOn = !lineOn; setLine(lineOn); });
 
   // Nav hides while the intro is on screen
   new IntersectionObserver(([e]) => document.body.classList.toggle('intro-visible', e.isIntersecting),
