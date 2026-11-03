@@ -73,14 +73,16 @@ img { display: block; }
 .link-arrow:hover { color: var(--lime); }
 
 /* ───────── Nav ───────── */
-.nav { position: sticky; top: 0; z-index: 50; background: var(--cream); }
-.nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 0 var(--gutter); max-width: 1470px; margin: 0 auto; height: 68px; }
-.brand { display: flex; align-items: center; gap: 8px; }
-.brand img { width: 36px; height: 36px; object-fit: cover; transition: transform .5s cubic-bezier(.3,.7,.4,1.3); }
+/* Floating bar (Figma "Nav" 137:2178): inset from the screen edges, sticks just below the top as you scroll */
+:root { --nav-top: 19px; }
+.nav { position: sticky; top: var(--nav-top); z-index: 50; width: calc(100% - var(--gutter) * 2); max-width: calc(1470px - var(--gutter) * 2); margin: var(--nav-top) auto 0;
+  background: rgba(253, 251, 239, 0.8); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 4px; }
+.nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 0 6px; height: 48px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand img { width: 34px; height: 34px; object-fit: cover; transition: transform .5s cubic-bezier(.3,.7,.4,1.3); }
 .brand:hover img { transform: rotate(-12deg) scale(1.06); }
-.nav-links .btn { padding: 10px 18px; }
-.brand-word { font-family: var(--f-head); font-weight: 700; font-size: 26px; letter-spacing: -0.64px; line-height: 1.05; color: var(--green); }
-.brand-word span { color: var(--lime); }
+.nav-links .btn { height: 36px; padding: 0 24px; }
+.brand-word { font-family: var(--f-head); font-weight: 700; font-size: 22px; letter-spacing: -0.22px; line-height: 1.15; color: var(--teal); }
 .nav-links { display: flex; align-items: center; gap: 36px; }
 .nav-links a:not(.btn) { position: relative; color: var(--navy); }
 .nav-links a:not(.btn)::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 2px; background: var(--green); transform: scaleX(0); transform-origin: left; transition: transform .25s; }
@@ -95,14 +97,30 @@ body.intro-on .page.active { animation: none; } /* the homepage intro opens in p
 .page.dark { background: var(--navy); color: var(--white); }
 
 /* Scaled art stages (crossword, reel, sticker clock) */
-.stage-wrap { position: relative; height: calc(var(--h) * var(--s)); overflow: hidden; }
+.stage-wrap { position: relative; height: round(calc(var(--h) * var(--s)), 1px); overflow: hidden; } /* whole px, so the sections below start on a pixel (no 1px sliver) */
 .stage { position: absolute; left: 50%; top: 0; width: 1470px; height: var(--h); transform: translateX(-50%) scale(var(--s)); transform-origin: top center; }
+/* Full-screen sections (her rule: fill the viewport unless the Figma frame is noticeably shorter). The section grows
+   to the screen height and shows more of its art instead of stretching it; each picks where the extra room goes.
+   4 Impacts stays its designed height (her call). */
+@media (min-width: 901px) {
+  .home-intro .stage-wrap, .mission .stage-wrap, .what-we-do .stage-wrap { height: max(round(calc(var(--h) * var(--s)), 1px), 100vh); height: max(round(calc(var(--h) * var(--s)), 1px), 100svh); }
+  .home-intro .stage, .what-we-do .stage { top: 50%; transform: translate(-50%, -50%) scale(var(--s)); transform-origin: center; } /* centred */
+  .home-intro .stage { top: calc(50% + var(--drop) * var(--s)); }
+  .mission .stage { top: auto; bottom: 0; transform-origin: bottom center; } /* more sky above */
+  .insta { min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; justify-content: center; }
+}
 
 /* ───────── Home: Intro animation (experimental) ───────── */
 html.intro-lock { overflow: hidden; }
-/* While the intro is on screen the nav is tucked away (fixed so it doesn't leave a gap) */
-body.intro-on .nav { position: fixed; left: 0; right: 0; top: 0; transition: transform .4s cubic-bezier(.2,.8,.2,1); }
-body.intro-on.intro-visible .nav { transform: translateY(-100%); }
+/* Homepage: the nav already sits at the top of the section after the hero and sticks once it reaches the top.
+   It stays first in the page (so it can stick all the way down, footer included): the top margin pushes it down
+   by the hero's height (--intro-h, from main.js) and the bottom margin pulls the page back up, so it takes no space.
+   flow-root stops that top margin leaking out through <body>. */
+body.intro-on { display: flow-root; }
+/* no frost until the hero has scrolled away (the bar sits on the plain section top then, and frosting over the
+   busy hero layers costs a lot while scrolling) */
+body.intro-on.intro-visible .nav { -webkit-backdrop-filter: none; backdrop-filter: none; }
+body.intro-on .nav { margin-top: calc(var(--intro-h, 100vh) + var(--nav-top)); margin-bottom: calc(-1 * (var(--intro-h, 100vh) + var(--nav-top) + 48px)); }
 
 .intro-seq { position: relative; --lead: 0px; }
 /* Viewport-sized layer pinned over the trail: dark cover, counter, corner labels */
@@ -137,9 +155,13 @@ body.intro-on.intro-visible .nav { transform: translateY(-100%); }
 .intro-photo { position: absolute; left: 0; top: 794px; width: 1474px; height: 914px; max-width: none; will-change: transform; } /* main.js adds a slight parallax drift */
 /* Softened copy of the photo, shown only where the photo reaches the top of the screen (main.js moves the mask) */
 .intro-photo-soft.css-blur { filter: blur(6px); } /* fallback where canvas blur is unsupported */
+.intro-photo-soft[style*="transparent, transparent"] { visibility: hidden; } /* fully masked → skip drawing it at all */
 .intro-photo-soft { --soft-mask: linear-gradient(transparent, transparent);
   -webkit-mask-image: var(--soft-mask); mask-image: var(--soft-mask); }
-.intro-constellation { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.intro-constellation { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none;
+  --c-mask: none; -webkit-mask-image: var(--c-mask); mask-image: var(--c-mask); }
+.intro-constellation.soft { visibility: hidden; } /* the pre-blurred copy: only drawn while the line is in the blur zone */
+.intro-constellation.soft.on { visibility: visible; }
 .intro-constellation .c-line { fill: none; stroke: #fdfcf3; stroke-width: 1; }
 .intro-constellation .c-dot { fill: #fdfbef; transform-box: fill-box; transform-origin: center; scale: 0; transition: scale .35s cubic-bezier(.3,1.6,.5,1); }
 .intro-constellation .c-dot.on { scale: 1; }
@@ -150,6 +172,7 @@ body.intro-on.intro-visible .nav { transform: translateY(-100%); }
 .intro-title .c-lime { --tt-color: var(--lime); }
 .intro-title .c-lavender { --tt-color: var(--lavender); }
 .tt-word { display: inline-block; white-space: nowrap; }
+.intro-title .tt-word, .tw { will-change: filter; } /* own layer per word: the depth blur is applied by the GPU, no redraw (main.js) */
 .tt-ch { position: relative; display: inline-block; color: transparent; }
 .tt-ch.set { color: var(--tt-color); }
 .tt-sc { position: absolute; left: 50%; top: 0; translate: -50% 0; color: var(--tt-color); }
@@ -162,6 +185,7 @@ body.intro-on.intro-visible .nav { transform: translateY(-100%); }
 .tw.g { font-family: "Faculty Glyphic", var(--f-head); font-weight: 400; }
 .tw.on { opacity: 1; animation: twIn .85s cubic-bezier(.2,.8,.2,1) backwards; }
 @keyframes twIn { from { opacity: 0; filter: blur(10px); transform: translateY(16px) scale(.94); } }
+.intro-seq.scrolling .tw .boil { filter: none; } /* wobble pauses while scrolling */
 
 .intro-replay { position: fixed; left: 16px; bottom: 16px; z-index: 90; padding: 10px 14px; background: var(--navy); color: var(--lime); border: 1.5px solid var(--lime); display: none; transition: background .2s, color .2s; }
 .intro-replay:hover { background: var(--lime); color: var(--navy); }
@@ -169,7 +193,6 @@ body.intro-on .intro-replay { display: block; }
 .intro-line-toggle { bottom: 16px; }
 .intro-count-toggle { bottom: 60px; }
 .intro-seq.no-line .intro-constellation { display: none; }
-.intro-seq.scrolling .tw .boil { filter: none; } /* wobble pauses while scrolling */
 
 /* ───────── Home: Hero ───────── */
 .hero { background: var(--cream); }
@@ -196,46 +219,50 @@ body.intro-on .intro-replay { display: block; }
 .intro p { max-width: 620px; }
 .ctas { display: flex; gap: 16px; flex-wrap: wrap; }
 
-/* ───────── Home: Mission ───────── */
-.mission { position: relative; min-height: 862px; display: flex; overflow: hidden; }
-.mission-bg { position: absolute; inset: 0; pointer-events: none; }
-/* Image is 30% taller than the section; main.js slides it for a parallax drift */
-.mission-bg img { position: absolute; left: 0; top: -15%; width: 100%; height: 130%; object-fit: cover; object-position: 50% 56.5%; will-change: transform; }
-.mission-bg .tint { position: absolute; inset: 0; background: linear-gradient(to bottom, var(--cream), var(--lavender)); mix-blend-mode: multiply; }
-.mission-bg .shade { position: absolute; inset: 0; background: linear-gradient(to left, rgba(26,26,50,.25), rgba(26,26,50,0)); }
-.mission .wrap { position: relative; width: 100%; display: flex; gap: 80px; align-items: stretch; padding-top: 120px; padding-bottom: 120px; }
-.mission .label { width: 260px; flex-shrink: 0; }
-.mission .body { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 40px; min-width: 0; }
-.mission .body .h2 { color: var(--paper); }
-.mission .body .body-l { color: var(--white); max-width: 760px; }
-
-/* ───────── Home: Crossword ───────── */
-/* Exactly one screen tall; main.js scales the crossword to fit (below the nav bar, with a little margin) */
-.crossword { background: var(--paper); height: 100vh; height: 100svh; position: relative; overflow: hidden; }
-.crossword .stage-wrap { height: 100%; }
-.crossword .stage { top: var(--cw-top, 50%); transform: translate(-50%, -50%) scale(var(--cs, 1)); transform-origin: center; }
-.cw-title { position: absolute; top: -9px; font-family: var(--f-head); font-weight: 700; font-size: 50px; line-height: 150px; letter-spacing: -3.5px; color: var(--navy); white-space: nowrap; }
-.cw-cell { position: absolute; width: 74.185px; height: 74.185px; border: 0.789px solid var(--navy); display: flex; align-items: center; justify-content: center; font-family: var(--f-head); font-weight: 700; font-size: 67.933px; letter-spacing: -4.7553px; color: var(--navy); line-height: 1; transition: background .2s, color .2s; }
-.cw-cell.tg { background: var(--tint-green); }
-.cw-cell.tp { background: var(--tint-peach); }
-.cw-cell.tg.tp { background: linear-gradient(var(--tint-green), var(--tint-green)), var(--tint-peach); }
-.cw-cell .ch { display: inline-block; padding-top: 6px; text-indent: -4px; opacity: 0; transform: translateY(-14px) scale(.85); transition: opacity .35s ease, transform .45s cubic-bezier(.3,.8,.3,1.3); }
+/* ───────── Home: Intro — headline beside the crossword (Figma "Intro" 100:722) ───────── */
+.home-intro { position: relative; background: var(--paper); }
+.home-intro { --drop: 48px; } /* contents sit this much lower than Figma, for more room under the nav bar */
+.home-intro-copy { position: absolute; left: var(--gutter); bottom: calc((120px - var(--drop)) * var(--s)); width: calc(521px * var(--s)); display: flex; flex-direction: column; gap: calc(40px * var(--s)); color: var(--navy); }
+.home-intro-copy .link-arrow:hover { color: var(--green); }
+/* 19 × 14 grid; main.js places the cells (46.14px apart) and letters */
+.cw-cell { position: absolute; width: 46.638px; height: 46.638px; border: 0.496px solid var(--teal); display: flex; align-items: center; justify-content: center; font-family: var(--f-head); font-weight: 700; font-size: 42.708px; letter-spacing: -2.9895px; line-height: 26.692px; color: var(--teal); transition: background .35s; }
+.cw-cell.wa.shown { background: var(--lime); }   /* across words */
+.cw-cell.wd.shown { background: var(--green); }  /* down words (they win where words cross) */
+.cw-cell .ch { display: inline-block; opacity: 0; transform: translateY(-10px) scale(.85); transition: opacity .35s ease, transform .45s cubic-bezier(.3,.8,.3,1.3); }
 .cw-cell.shown .ch { opacity: 1; transform: none; }
 .cw-cell.has-letter { cursor: pointer; }
-.cw-cell.hl { background: var(--lime) !important; }
-.cw-deco { position: absolute; mix-blend-mode: multiply; cursor: grab; touch-action: none; user-select: none; }
+.cw-cell.hl { background: var(--lavender) !important; }
+.cw-deco { position: absolute; cursor: grab; touch-action: none; user-select: none; }
 .cw-deco:active { cursor: grabbing; }
 .cw-deco .rot { position: absolute; inset: 0; transition: scale .3s cubic-bezier(.3,.8,.3,1.5); }
 .cw-deco:hover .rot { scale: 1.12; }
 .cw-deco img { position: absolute; max-width: none; pointer-events: none; -webkit-user-drag: none; }
-.cw-deco.sticker { mix-blend-mode: normal; }
-.cw-hint { position: absolute; left: 38px; top: 978px; color: var(--muted); }
+
+/* ───────── Home: Blurb (Figma "Blurb" 152:3238) ───────── */
+.blurb { background: var(--paper); min-height: round(calc(400px * var(--s)), 1px); padding: calc(60px * var(--s)) var(--gutter); display: flex; align-items: center; justify-content: center; }
+.blurb p { max-width: 970px; text-align: center; color: var(--navy); }
+
+/* ───────── Home: Mission (Figma "Mission" 152:3867) ───────── */
+/* The photo, speckles, constellation and tags share one scene, so they drift together (main.js parallax) */
+.mission { position: relative; background: #1d0810; overflow: hidden; } /* dark land colour behind the photo */
+.mission-scene { position: absolute; inset: 0; will-change: transform; }
+.mission-photo { position: absolute; left: -154px; top: -474px; width: 1778px; height: 1336px; max-width: none; }
+.mission-speckles { position: absolute; left: 0; top: -474px; width: 1470px; height: 1336px; pointer-events: none; } /* the whole photo, so taller screens are covered */
+.mission-line { position: absolute; left: 307.04px; top: 39.53px; width: 955.08px; height: 708.675px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.mission-line .rot { position: relative; flex: none; width: 372.775px; height: 879.926px; rotate: 114.91deg; }
+.mission-line svg { position: absolute; left: -1px; top: -1px; overflow: visible; }
+.mission-line .m-line { fill: none; stroke: #fdfcf3; stroke-width: 1; }
+.mission-line .m-dot { fill: #fdfbef; } /* already there; only the line draws in */
+.mission-tag { position: absolute; font-family: var(--f-mono); font-weight: 600; font-size: 11px; line-height: 1.3; letter-spacing: .4px; color: var(--cream); white-space: pre; font-variant-numeric: tabular-nums; }
+.mission-tag { filter: url(#boil-tags); } .mission.scrolling .mission-tag { filter: none; } /* boil, paused while scrolling */
+.mission-tag.flip-x { translate: -100% 0; text-align: right; } .mission-tag.flip-y { margin-top: -2.6em; } /* left / above the dot */
+.mission-quote { position: absolute; left: var(--gutter); bottom: calc(57px * var(--s)); width: calc(811px * var(--s)); color: var(--paper); }
 
 /* ───────── Home: Impacts reel ───────── */
 .impacts { background: var(--paper); }
 .impacts .stage { cursor: grab; touch-action: pan-y; }
 .impacts .stage.dragging { cursor: grabbing; }
-.impacts-head { position: absolute; left: 48px; top: 120px; display: flex; flex-direction: column; gap: 16px; white-space: nowrap; z-index: 2; pointer-events: none; }
+.impacts-head { position: absolute; left: 48px; top: 153px; display: flex; flex-direction: column; gap: 16px; white-space: nowrap; z-index: 2; pointer-events: none; }
 .reel { position: absolute; left: 735.6px; top: 1290.6px; width: 0; height: 0; will-change: transform; }
 .reel-wheel { position: absolute; width: 2136.482px; height: 2130.676px; left: -1068.24px; top: -1065.34px; rotate: 125.34deg; pointer-events: none; }
 .reel-wheel img { width: 100%; height: 100%; object-fit: cover; -webkit-user-drag: none; }
@@ -470,20 +497,19 @@ html:not(.has-cursor) .pg-toggle, html:not(.has-cursor) .pg { display: none; }
   .cta-lime .wrap { flex-direction: column; align-items: flex-start; }
 }
 @media (max-width: 900px) {
-  :root { --gutter: 20px; }
-  .nav-inner { height: 60px; }
+  :root { --gutter: 20px; --nav-top: 12px; }
+  .nav-inner { padding: 0 6px 0 10px; }
   .brand img { width: 32px; height: 32px; }
-  .brand-word { font-size: 22px; }
   .nav-toggle { display: block; padding: 7px 12px; border: 1.5px solid var(--navy); }
-  .nav-links { display: none; position: absolute; top: 100%; left: 0; right: 0; flex-direction: column; align-items: flex-start; gap: 22px; padding: 24px var(--gutter) 32px; background: var(--cream); border-bottom: 1px solid var(--line); }
+  .nav-links { display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; flex-direction: column; align-items: flex-start; gap: 22px; padding: 24px 16px 32px; background: var(--cream); border-radius: 4px; }
   .nav.open .nav-links { display: flex; }
   .hero .wrap { min-height: auto; gap: 72px; padding-top: 32px; padding-bottom: 48px; }
   .hero-top { flex-direction: column-reverse; }
   .letter-grid { grid-template-columns: repeat(4, 64px); grid-auto-rows: 64px; }
   .lg-cell { font-size: 46px; }
   .intro { flex-direction: column; align-items: flex-start; }
-  .mission { min-height: 0; }
-  .mission .wrap, .about-mission .wrap { flex-direction: column; gap: 32px; padding-top: 80px; padding-bottom: 80px; }
+  .home-intro-copy, .mission-quote { position: static; width: auto; padding: 32px var(--gutter) 56px; gap: 24px; }
+  .about-mission .wrap { flex-direction: column; gap: 32px; padding-top: 80px; padding-bottom: 80px; }
   .about-mission .wrap { padding-top: 0; }
   .photos { flex-direction: column; }
   .photos .ph { height: 240px; }
@@ -504,3 +530,50 @@ html:not(.has-cursor) .pg-toggle, html:not(.has-cursor) .pg { display: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ───────── Click-to-place star stickers (main.js) ───────── */
+.star-layer { position: absolute; left: 0; top: 0; width: 100%; height: 0; z-index: 45; pointer-events: none; } /* above the page, under the nav (50) */
+.star { position: absolute; pointer-events: none; user-select: none; rotate: var(--r); isolation: isolate; }
+.star-layer .star { pointer-events: auto; touch-action: none; cursor: grab; transition: scale .3s cubic-bezier(.3,.8,.3,1.5); animation: starPop .45s cubic-bezier(.3,1.6,.5,1) backwards; }
+.star-layer .star:hover { scale: 1.12; }
+.star-layer .star.dragging { cursor: grabbing; scale: 1.18; }
+@keyframes starPop { from { scale: 0; rotate: calc(var(--r) - 40deg); } }
+@media (prefers-reduced-motion: reduce) { .star-layer .star { animation: none; } }
+.star img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+/* palette colours: grey, brightened PNG × the colour, cut to the star's shape (keeps the halftone shading) */
+.star.tinted img { filter: grayscale(1) brightness(1.5) contrast(1.2); }
+.star i { position: absolute; inset: 0; mix-blend-mode: multiply; -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
+/* Star colour panel (press S) — reuses the cursor playground's panel styles */
+.star-pg { right: auto; left: 16px; bottom: 16px; width: 330px; }
+.star-pg .pg-chips button { flex: 1; }
+.star-pg .dim { opacity: .45; }
+.pg-swatches .star-sw-none { background: linear-gradient(to top right, transparent calc(50% - 1px), #e5484d calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)), var(--white); } /* "no colour": red slash */
+.star-sw { position: relative; display: inline-flex; }
+.pg-swatches .star-sw-x { position: absolute; top: -7px; right: -7px; width: 16px; height: 16px; border-radius: 50%; background: var(--line); color: var(--white); font-size: 9px; line-height: 16px; text-align: center; }
+.pg-swatches .star-sw-x:hover { background: var(--lime); color: var(--navy); }
+.star-pg-note { font-size: 10px; letter-spacing: .3px; text-transform: none; }
+.star-pg-preview { position: relative; display: flex; justify-content: space-around; align-items: center; height: 48px; padding: 0 4px; overflow: hidden; background: var(--paper); cursor: pointer; }
+.star-pg .pg-foot { gap: 16px; }
+.star-pg-preview .star { position: relative; flex: none; }
+
+/* ───────── Lag test panel (press P) + its switches ───────── */
+.perf-panel { position: fixed; left: 16px; top: 50%; translate: 0 -50%; z-index: 96; width: 250px; background: var(--navy); color: var(--white); border: 1px solid var(--line); box-shadow: 0 20px 40px rgba(0,0,0,.4); padding: 16px; display: none; flex-direction: column; gap: 12px; }
+.perf-panel.open { display: flex; }
+.perf-head { display: flex; justify-content: space-between; align-items: center; color: var(--lime); }
+.perf-reset { color: var(--muted); } .perf-reset:hover { color: var(--lime); }
+.perf-meter { line-height: 1.5; color: var(--muted); } .perf-meter b { color: var(--lime); font-weight: 600; }
+.perf-list { display: flex; flex-direction: column; gap: 8px; }
+.perf-list label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.perf-list input { accent-color: var(--lime); }
+.perf-list i { color: var(--muted); font-style: normal; }
+html.perf-off-cursor .cursor, html.perf-off-cursor .cursor-sq { display: none !important; }
+html.perf-off-speckles .intro-speckles, html.perf-off-speckles .intro-speckles-lead { display: none !important; }
+html.perf-off-photo .intro-photo, html.perf-off-photo .intro-photo-soft { display: none !important; }
+html.perf-off-photoBlur .intro-photo-soft { display: none !important; }
+html.perf-off-wobble .tw .boil { filter: none !important; }
+html.perf-off-line .intro-constellation { display: none !important; }
+html.perf-off-lineBlur .intro-constellation.soft { display: none !important; }
+html.perf-off-lineBlur .intro-constellation { -webkit-mask-image: none !important; mask-image: none !important; }
+html.perf-off-navFrost .nav { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html.perf-off-crossword .home-intro .stage-wrap { visibility: hidden !important; }
+html.hide-dev [data-dev-ui] { display: none !important; } /* Shift + H (main.js) */

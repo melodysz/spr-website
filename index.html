@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@700&family=DM+Mono:wght@400;500&family=Faculty+Glyphic&family=Hanken+Grotesk:wght@400&family=Inter:wght@400&family=Unbounded:wght@700&display=swap" rel="stylesheet">
   <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.13/dist/lenis.css">
-  <link rel="stylesheet" href="style.css?v=42">
+  <link rel="stylesheet" href="style.css?v=70">
 </head>
 <body>
 
@@ -18,13 +18,12 @@
   <div class="nav-inner">
     <a class="brand" href="#/">
       <img src="assets/logo.png" alt="SPR logo">
-      <span class="brand-word">SPR<span>*</span></span>
+      <span class="brand-word">SPR</span>
     </a>
     <button class="nav-toggle mono" id="nav-toggle" aria-expanded="false">Menu</button>
     <nav class="nav-links mono">
+      <a href="#/" data-route="home">Home</a>
       <a href="#/about" data-route="about">About</a>
-      <a href="#/initiatives" data-route="initiatives">Initiatives</a>
-      <a href="#/members" data-route="members">Members</a>
       <a href="#/events" data-route="events">Events</a>
       <a href="#/get-involved" data-route="get-involved">Get Involved</a>
       <a class="btn btn-nav" href="#/get-involved">Join SPR <span class="arr">→</span></a>
@@ -72,8 +71,9 @@
       <div class="stage" id="intro-words-stage">
         <!-- Constellation line from Figma: drawn in step with the camera, dots pop in at each pivot; main.js boils it -->
           <svg class="intro-constellation" width="1470" height="1545" viewBox="0 0 1470 1545" aria-hidden="true">
+            <defs><filter id="c-soft" x="-20%" y="-5%" width="140%" height="110%"><feGaussianBlur stdDeviation="4"/></filter></defs>
             <g>
-              <polyline class="c-line" data-points="750.5,92.45 656,192.45 873,362.95 656,599.45 1072,793.95 945,967.45 1114,1248.95"/>
+              <polyline class="c-line" data-points="750.5,92.45 656,192.45 873,362.95 668,633 1072,793.95 945,967.45 1114,1248.95"/>
             </g>
           </svg>
         <!-- trail words are added by main.js -->
@@ -81,33 +81,20 @@
     </div>
   </div>
 
-  <!-- Mission -->
-  <div class="mission">
-    <div class="mission-bg">
-      <img src="assets/mission.png" alt="">
-      <div class="tint"></div>
-      <div class="shade"></div>
+  <!-- Intro: what SPR is, beside the crossword (Figma "Intro" 100:722) -->
+  <div class="home-intro">
+    <div class="stage-wrap" style="--h: 924px">
+      <div class="stage" id="crossword"><!-- grid + stickers are added by main.js --></div>
     </div>
-    <div class="wrap">
-      <div class="label"><p class="mono semi c-navy">01 — Who we are</p></div>
-      <div class="body">
-        <p class="h2">We believe good science is a public service—and should be for the betterment of all.</p>
-        <p class="body-l">Our members discuss science policy issues, participate in grassroots advocacy, connect with their peers across disciplines, and develop research communication skills.</p>
-        <a class="mono semi c-white link-arrow" href="#/about">About SPR →</a>
-      </div>
+    <div class="home-intro-copy">
+      <p class="h2">A student club for scientists who care about policy.</p>
+      <a class="mono semi link-arrow" href="#/about">About SPR →</a>
     </div>
   </div>
 
-  <!-- Crossword (from the "Hero" frame, added as a homepage section) -->
-  <div class="crossword">
-    <div class="stage-wrap" style="--h: 1010px">
-      <div class="stage" id="crossword">
-        <p class="cw-title" style="left: 38px">scientists for</p>
-        <p class="cw-title" style="right: 34px; text-align: right">public research</p>
-        <!-- cells, stars + stickers are added by main.js -->
-        <p class="cw-hint mono-s">Hover a word · drag the stars around</p>
-      </div>
-    </div>
+  <!-- Blurb (Figma "Blurb" 152:3238) -->
+  <div class="blurb">
+    <p class="body-l">Scientists for Public Research is an undergraduate organization at the University of Maryland. We bring students together to discuss science policy, organize grassroots advocacy, and learn to communicate research to the public.</p>
   </div>
 
   <!-- 4 Impacts: rotating View-Master reel -->
@@ -115,7 +102,6 @@
     <div class="stage-wrap" style="--h: 725px">
       <div class="stage" id="reel-stage">
         <div class="impacts-head">
-          <p class="mono semi c-lime">02 — Our impact</p>
           <p class="h2 c-navy" style="font-size: 64px; letter-spacing: -2.56px">Four ways we show up.</p>
         </div>
         <div class="reel" id="reel">
@@ -124,6 +110,38 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Mission: sunset photo, speckles in the sky only, a constellation linking the turbines (Figma "Mission" 152:3867) -->
+  <div class="mission">
+    <div class="stage-wrap" style="--h: 862px">
+      <div class="stage">
+        <div class="mission-scene">
+          <img class="mission-photo" src="assets/mission-sunset.jpg" alt="">
+          <canvas class="mission-speckles" aria-hidden="true"></canvas>
+          <!-- Boil for the coordinate tags: same wobble as the hero words, gentler for 11px text (main.js pauses it off screen) -->
+          <svg class="mission-boil" width="0" height="0" style="position:absolute" aria-hidden="true">
+            <filter id="boil-tags" x="-10%" y="-25%" width="120%" height="150%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="1">
+                <animate attributeName="seed" values="1;2;3" dur="0.45s" calcMode="discrete" repeatCount="indefinite"/>
+              </feTurbulence>
+              <feDisplacementMap in="SourceGraphic" scale="1.6" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+          </svg>
+          <div class="mission-line" aria-hidden="true"><div class="rot"><svg viewBox="0 0 374.775 881.926" width="374.775" height="881.926"><polyline class="m-line"/></svg></div></div>
+          <span class="mission-tag" style="left:282px; top:358px"></span>
+          <span class="mission-tag" style="left:464px; top:404px"></span>
+          <span class="mission-tag" style="left:526px; top:350px"></span>
+          <span class="mission-tag" style="left:616px; top:387px"></span>
+          <span class="mission-tag" style="left:776px; top:334px"></span>
+          <span class="mission-tag" style="left:873px; top:386px"></span>
+          <span class="mission-tag" style="left:939px; top:382px"></span>
+          <span class="mission-tag" style="left:1092px; top:372px"></span>
+          <span class="mission-tag" style="left:1260px; top:392px"></span>
+        </div>
+      </div>
+    </div>
+    <p class="h2 mission-quote">We believe good science is a public service—and should be for the betterment of all.</p>
   </div>
 
   <!-- Initiatives preview: sticker clock -->
@@ -552,6 +570,6 @@
 
 <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
 <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-<script src="main.js?v=59"></script>
+<script src="main.js?v=105"></script>
 </body>
 </html>

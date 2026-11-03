@@ -3,6 +3,10 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // Don't let the browser restore the old scroll position on reload: it lands after the page loads, mid-intro
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+// Lag test switches (press P): effects switched off here, remembered in this browser until switched back on
+const PERF_OFF = new Set((() => { try { return JSON.parse(localStorage.getItem('spr-perf-off') || '[]'); } catch { return []; } })());
+const perfOff = key => PERF_OFF.has(key);
+PERF_OFF.forEach(k => document.documentElement.classList.add('perf-off-' + k));
 
 /* ───────── Art stages scale to the viewport (designed at 1470px wide) ───────── */
 function fitStages() {
@@ -13,9 +17,9 @@ addEventListener('resize', fitStages);
 fitStages();
 
 /* ───────── Smooth scroll (light: trackpad/wheel only, touch stays native) ───────── */
-const lenis = !reduceMotion && window.Lenis ? new Lenis({ lerp: 0.24 }) : null;
+const lenis = !reduceMotion && window.Lenis && !perfOff('smooth') ? new Lenis({ lerp: 0.24 }) : null;
 if (lenis) requestAnimationFrame(function raf(t) { lenis.raf(t); requestAnimationFrame(raf); });
-const NAV_H = () => $('#nav').offsetHeight;
+const NAV_H = () => { const nav = $('#nav'); return nav.offsetHeight + parseFloat(getComputedStyle(nav).top); }; // the floating bar + its gap from the top
 
 /* ───────── Custom cursor: full-screen crosshair + square (mouse/trackpad only) ───────── */
 (function cursor() {
@@ -75,7 +79,7 @@ const NAV_H = () => $('#nav').offsetHeight;
   let under = null; // element currently under the cursor
   function updateUnder(t) {
     under = t;
-    hovering = !!t?.closest('a, button, .has-letter, .cw-deco, .chip, .legend-item');
+    hovering = !!t?.closest('a, button, .has-letter, .cw-deco, .star-layer .star, .chip, .legend-item');
     el.classList.toggle('on-green', !!t?.closest('.footer, .founders, .bg-green, .btn-green'));
     dark = isDark(t);
     sqCanvas.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
@@ -108,6 +112,7 @@ const NAV_H = () => $('#nav').offsetHeight;
   let lastFrame = performance.now(), frame = 0;
   function loop(t) {
     requestAnimationFrame(loop);
+    if (perfOff('cursor')) return;
     const dt = Math.min(0.05, (t - lastFrame) / 1000);
     lastFrame = t;
     // Re-check what's under a still cursor every few frames (the page can move underneath it)
@@ -262,25 +267,30 @@ $('#nav-toggle').addEventListener('click', () => {
 /* Stage-space pointer helper (stages are CSS-scaled) */
 const scale = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
 
-/* ───────── Crossword ───────── */
+/* ───────── Crossword (Figma "Intro" 100:722) ───────── */
 (function crossword() {
   const stage = $('#crossword');
-  const COLS = 19, ROWS = 12;
-  const x = c => 38 + 73.39 * c;
-  const y = r => 85 + 73.39 * r;
+  // 19 × 14 cells, 46.14px apart, from (638, 139); the last column runs off the right edge like the design
+  const COLS = 19, ROWS = 14, STEP = 46.14;
+  const x = c => 638 + STEP * c;
+  const y = r => 139 + STEP * r;
 
   const words = [
-    { w: 'EXPLORE', c: 2, r: 1, down: true },
-    { w: 'POLICY', c: 1, r: 5 },
-    { w: 'COMMUNITY', c: 6, r: 3 },
-    { w: 'JUSTICE', c: 10, r: 2, down: true },
-    { w: 'ADVOCACY', c: 4, r: 7 },
-    { w: 'EDUCATE', c: 10, r: 8 },
-    { w: 'RESEARCH', c: 14, r: 4, down: true },
+    { w: 'EXPLORE', c: 2, r: 2, down: true },
+    { w: 'POLICY', c: 1, r: 6 },
+    { w: 'COMMUNITY', c: 6, r: 4 },
+    { w: 'JUSTICE', c: 10, r: 3, down: true },
+    { w: 'ADVOCACY', c: 4, r: 8 },
+    { w: 'EDUCATE', c: 10, r: 9 },
+    { w: 'RESEARCH', c: 14, r: 5, down: true },
   ];
+  // decorative cells (the word cells get their lime/green as their letters drop in)
   const fills = {
-    '2,0': 'lavender', '9,1': 'lime', '15,1': 'lavender', '18,2': 'lime', '1,4': 'green', '16,4': 'teal',
-    '8,5': 'teal', '7,8': 'lavender', '3,9': 'lime', '0,10': 'teal', '17,10': 'green', '4,11': 'teal',
+    '0,1': 'cream', '10,1': 'cream', '15,1': 'cream', '2,1': 'lavender', '1,2': 'cream', '6,2': 'cream', '9,2': 'lavender',
+    '11,2': 'cream', '14,2': 'cream', '15,2': 'lavender', '12,3': 'cream', '17,3': 'cream', '18,3': 'lavender',
+    '0,4': 'cream', '3,4': 'cream', '1,5': 'green', '12,5': 'cream', '16,5': 'teal', '18,5': 'cream', '8,6': 'teal',
+    '0,7': 'cream', '11,7': 'cream', '17,7': 'cream', '7,9': 'lavender', '17,9': 'cream', '0,10': 'cream', '3,10': 'lavender',
+    '0,11': 'teal', '15,11': 'cream', '17,11': 'green', '4,12': 'teal',
   };
 
   const cells = {};
@@ -300,7 +310,7 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     word.cells = [...word.w].map((ch, i) => {
       const key = word.down ? `${word.c},${word.r + i}` : `${word.c + i},${word.r}`;
       const cell = cells[key];
-      cell.el.classList.add(word.down ? 'tg' : 'tp', 'has-letter');
+      cell.el.classList.add(word.down ? 'wd' : 'wa', 'has-letter');
       if (!cell.el.firstChild) cell.el.innerHTML = `<span class="ch">${ch}</span>`;
       cell.words.push(wi);
       return cell;
@@ -323,36 +333,18 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
   }, { threshold: 0.25 });
   io.observe(stage);
 
-  // Fill the screen: scale the 1470×1010 crossword to fit the viewport below the nav bar
-  function fitToScreen() {
-    const navH = $('#nav').offsetHeight, margin = 24;
-    const cs = Math.min(innerWidth / 1470, (innerHeight - navH - margin * 2) / 1010);
-    const section = stage.closest('.crossword');
-    section.style.setProperty('--cs', cs);
-    section.style.setProperty('--cw-top', `calc(50% + ${navH / 2}px)`);
-  }
-  addEventListener('resize', fitToScreen);
-  fitToScreen();
-
-  // Stars + stickers (draggable)
+  // Stickers (draggable)
   const decos = [
-    { src: 'star1.svg', cx: 108.5, cy: 795.5, w: 181, h: 181, rot: 12.49, inset: '0 0.76% 3.02% 0.76%' },
-    { src: 'star3.svg', cx: 365.56, cy: 218.88, w: 81.251, h: 81.251, rot: -9.13, inset: '0 2.45% 9.55% 2.45%' },
-    { src: 'star4.svg', cx: 420.39, cy: 167.84, w: 81.251, h: 81.251, rot: 13.19, inset: '0 2.45% 9.55% 2.45%' },
-    { src: 'star5.svg', cx: 460.82, cy: 323.82, w: 81.251, h: 81.251, rot: 6.79, inset: '0 2.45% 9.55% 2.45%' },
-    { src: 'star2.svg', cx: 1173.95, cy: 230.84, w: 204.495, h: 204.495, rot: 12.49, inset: '0 2.45%' },
-    { src: 'sticker62.png', cx: 1156.97, cy: 221.73, w: 90.029, h: 86.057, rot: 31.99, sticker: true },
-    { src: 'sticker60.png', cx: 1253.85, cy: 336.67, w: 70.643, h: 61.665, rot: -43.33, sticker: true },
-    { src: 'sticker63.png', cx: 318.48, cy: 824.53, w: 80.315, h: 76.926, rot: 21.56, sticker: true, flipY: true },
+    { src: 'sticker62.png', cx: 1341.47, cy: 270.66, w: 56.599, h: 54.102, rot: 31.99 },
+    { src: 'sticker60.png', cx: 1402.37, cy: 342.92, w: 44.411, h: 38.767, rot: -43.33 },
+    { src: 'sticker63.png', cx: 814.34, cy: 649.63, w: 50.492, h: 48.361, rot: 21.56, flipY: true },
   ];
   let topZ = 10;
   decos.forEach(d => {
     const el = document.createElement('div');
-    el.className = 'cw-deco' + (d.sticker ? ' sticker' : '');
+    el.className = 'cw-deco';
     Object.assign(el.style, { left: d.cx - d.w / 2 + 'px', top: d.cy - d.h / 2 + 'px', width: d.w + 'px', height: d.h + 'px' });
-    const imgStyle = d.sticker
-      ? `inset:0; width:100%; height:100%; object-fit:cover;${d.flipY ? ' transform:scaleY(-1);' : ''}`
-      : `inset:${d.inset}`;
+    const imgStyle = `inset:0; width:100%; height:100%; object-fit:cover;${d.flipY ? ' transform:scaleY(-1);' : ''}`;
     el.innerHTML = `<div class="rot" style="rotate:${d.rot}deg"><img src="assets/${d.src}" alt="" draggable="false" style="${imgStyle}"></div>`;
     stage.appendChild(el);
 
@@ -364,7 +356,7 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     });
     el.addEventListener('pointermove', e => {
       if (!start) return;
-      const s = stage.getBoundingClientRect().width / 1470; // crossword has its own fit-to-screen scale
+      const s = stage.getBoundingClientRect().width / 1470;
       pos = { x: start.px + (e.clientX - start.x) / s, y: start.py + (e.clientY - start.y) / s };
       el.style.translate = `${pos.x}px ${pos.y}px`;
     });
@@ -445,7 +437,11 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
   stage.addEventListener('pointerup', endDrag);
   stage.addEventListener('pointercancel', endDrag);
 
+  // Only turns while the section is on screen: a transform written every frame keeps the browser repainting the
+  // whole time the page is open, which made long sessions stutter (it picks up where it left off)
+  let onScreen = false, running = false;
   function tick(now) {
+    if (!onScreen) { running = false; return; }
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     if (!drag) {
@@ -456,7 +452,10 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     reelEl.style.transform = `rotate(${angle}deg)`;
     requestAnimationFrame(tick);
   }
-  requestAnimationFrame(tick);
+  new IntersectionObserver(([e]) => {
+    onScreen = e.isIntersecting && e.intersectionRect.height > 0; // touching the screen edge doesn't count
+    if (onScreen && !running) { running = true; last = performance.now(); requestAnimationFrame(tick); }
+  }, { threshold: [0, 0.01] }).observe(stage);
 })();
 
 /* ───────── "What we do": sticker clock, hands follow the labels ───────── */
@@ -667,19 +666,176 @@ $('#contact-form').addEventListener('submit', e => {
 });
 
 /* ───────── "Who we are" photo parallax: the taller image drifts slower than the page ───────── */
-(function missionParallax() {
-  const section = $('.mission'), img = $('.mission-bg img');
-  if (!section || reduceMotion) return;
-  function update() {
+/* ───────── Mission: speckles in the sky only, plus a parallax drift (Figma "Mission" 152:3867) ───────── */
+(function mission() {
+  const section = $('.mission');
+  if (!section) return;
+  const scene = $('.mission-scene', section), photo = $('.mission-photo', section), canvas = $('.mission-speckles', section);
+  const ctx = canvas.getContext('2d');
+  // canvas covers the whole photo (taller screens show more sky above the stage); same dot recipe as the hero
+  const W = 1470, TOP = -474, H = 862 - TOP;
+  const PHOTO = { x: -154, y: -474, w: 1778, h: 1336 };
+  const COLORS = ['#c6f221', '#dafe7a', '#00d37f', '#2fdbb2', '#8cebd7', '#c5b6f1', '#ddd2fa', '#ffffff'];
+  const AREA = 735, TICK = 240, CHURN = 0.33;
+  const SPECKLES_ON = false; // hidden for now (her call, 2026-11-03) — flip to true to bring the sky speckles back
+  canvas.hidden = !SPECKLES_ON;
+
+  // Sky test: is the photo bright orange at this spot? The dark land, the red ridge and the turbines aren't.
+  let isSky = () => false;
+  function readSky() {
+    const k = 4, c = document.createElement('canvas');
+    c.width = Math.round(PHOTO.w / k); c.height = Math.round(PHOTO.h / k);
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(photo, 0, 0, c.width, c.height);
+    const px = g.getImageData(0, 0, c.width, c.height).data;
+    isSky = (x, y) => {
+      const u = Math.floor((x - PHOTO.x) / k), v = Math.floor((y - PHOTO.y) / k);
+      if (u < 0 || v < 0 || u >= c.width || v >= c.height) return false;
+      const i = (v * c.width + u) * 4;
+      return px[i] > 170 && px[i + 1] > 70;
+    };
+  }
+  // a dot somewhere in the sky (null if a few tries all land on the ground)
+  function newDot() {
+    for (let t = 0; t < 12; t++) {
+      const d = 1 + Math.random() * 1.6, x = Math.random() * (W - d), y = TOP + Math.random() * (H - d);
+      if (isSky(x + d / 2, y + d / 2)) return { x, y, d, a: 0.35 + Math.random() * 0.65, c: COLORS[Math.floor(Math.random() * COLORS.length)] };
+    }
+    return null;
+  }
+  let dots = [];
+  function size() {
+    const k = Math.min(devicePixelRatio || 1, 1.5) * Math.min(1, document.documentElement.clientWidth / 1470);
+    canvas.width = Math.round(W * k); canvas.height = Math.round(H * k);
+    ctx.setTransform(k, 0, 0, k, 0, -TOP * k);
+  }
+  function draw() {
+    ctx.clearRect(0, TOP, W, H);
+    for (const p of dots) { ctx.globalAlpha = p.a; ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, p.d, p.d); }
+    ctx.globalAlpha = 1;
+  }
+  function start() {
+    readSky();
+    dots = Array.from({ length: Math.round(W * H / AREA) }, newDot).filter(Boolean);
+    size(); draw();
+    addEventListener('resize', () => { size(); draw(); });
+    if (reduceMotion) return;
+    // shimmer like the hero: every beat about a third of the dots hop to a new spot in the sky (only while on screen)
+    let visible = false;
+    new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(section);
+    setInterval(() => {
+      if (!visible) return;
+      dots = dots.map(p => Math.random() < CHURN ? newDot() || p : p);
+      draw();
+    }, TICK);
+  }
+  if (SPECKLES_ON) { if (photo.complete && photo.naturalWidth) start(); else photo.addEventListener('load', start, { once: true }); }
+
+  // Constellation over the turbines: the line draws in from the left as you scroll down to the section (tied to
+  // scroll, like the hero's line) between dots that are already there; it boils
+  // (re-drawn through slightly nudged points every 150ms) while on screen and you're not scrolling.
+  (function line() {
+    const svg = $('.mission-line svg', section), poly = $('.m-line', svg);
+    // the Figma line's points, reversed so it draws from its left end (the svg is rotated 114.91°)
+    const PTS = [[368.494, 876.694], [310.425, 699.816], [275.749, 698.541], [272.761, 576.956], [154.314, 452.841],
+      [165.237, 356.877], [127.84, 280.676], [38.669, 128.933], [6.178, 5.675]];
+    const dots = PTS.map(([x, y]) => {
+      const d = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      d.setAttribute('class', 'm-dot'); d.setAttribute('r', 6.06);
+      svg.append(d);
+      return d;
+    });
+    const cum = [0];
+    for (let i = 1; i < PTS.length; i++) cum.push(cum[i - 1] + Math.hypot(PTS[i][0] - PTS[i - 1][0], PTS[i][1] - PTS[i - 1][1]));
+    const len = cum[cum.length - 1];
+    let drawn = -1, jitterLen = len;
+    function boil() {
+      const j = () => (Math.random() - 0.5) * 1.6; // ±0.8px, same as the hero
+      const out = [];
+      for (let i = 0; i < PTS.length; i++) {
+        const [x, y] = PTS[i];
+        out.push([x + j(), y + j()]);
+        if (i === PTS.length - 1) break;
+        const [x2, y2] = PTS[i + 1], l = Math.hypot(x2 - x, y2 - y), n = Math.max(1, Math.floor(l / 40));
+        const nx = -(y2 - y) / l, ny = (x2 - x) / l;
+        for (let k = 1; k < n; k++) { const f = k / n, o = j() * 0.9; out.push([x + (x2 - x) * f + nx * o, y + (y2 - y) * f + ny * o]); }
+      }
+      poly.setAttribute('points', out.map(([x, y]) => x.toFixed(1) + ',' + y.toFixed(1)).join(' '));
+      jitterLen = poly.getTotalLength();
+      poly.style.strokeDasharray = jitterLen;
+      poly.style.strokeDashoffset = jitterLen * (1 - Math.max(0, drawn) / len);
+      dots.forEach((d, i) => { d.setAttribute('cx', (PTS[i][0] + j() * 0.6).toFixed(1)); d.setAttribute('cy', (PTS[i][1] + j() * 0.6).toFixed(1)); });
+    }
+    // each tag belongs to its nearest dot. Dot positions in the scene, worked out from the Figma layout: the svg sits
+    // 1px up-left inside a 372.775 × 879.926 box rotated 114.91° about its centre, centred at (784.58, 393.87)
+    const tags = $$('.mission-tag', section);
+    const A = 114.91 * Math.PI / 180, cos = Math.cos(A), sin = Math.sin(A);
+    const dotXY = PTS.map(([x, y]) => { const vx = x - 1 - 186.39, vy = y - 1 - 439.96; return [784.58 + vx * cos - vy * sin, 393.87 + vx * sin + vy * cos]; });
+    const tagDot = tags.map(t => {
+      const tx = parseFloat(t.style.left) + 10, ty = parseFloat(t.style.top) + 6; // Figma tag centre (≈ 20 × 12px)
+      let best = 0;
+      dotXY.forEach(([x, y], i) => { if (Math.hypot(x - tx, y - ty) < Math.hypot(dotXY[best][0] - tx, dotXY[best][1] - ty)) best = i; });
+      // each label sits 9px off its dot, on the side Figma put it
+      const [dx, dy] = dotXY[best];
+      t.style.left = dx + (tx >= dx ? 9 : -9) + 'px';
+      t.style.top = dy + (ty >= dy ? 9 : -9) + 'px';
+      t.classList.toggle('flip-x', tx < dx); t.classList.toggle('flip-y', ty < dy);
+      return best;
+    });
+    // labels read out the dot's position on the page, like the cursor's coordinates (they tick as the scene drifts)
+    const pad = n => String(Math.round(n)).padStart(4, '0');
+    function label() {
+      const r = scene.getBoundingClientRect(), k = r.width / 1470;
+      tags.forEach((t, i) => {
+        const [x, y] = dotXY[tagDot[i]], text = `X ${pad(r.left + scrollX + x * k)}\nY ${pad(r.top + scrollY + y * k)}`;
+        if (t.textContent !== text) t.textContent = text;
+      });
+    }
+    function draw(p) {
+      const l = Math.max(0, Math.min(1, p)) * len;
+      if (Math.abs(l - drawn) < 0.5) return;
+      drawn = l;
+      poly.style.strokeDashoffset = jitterLen * (1 - l / len);
+    }
+    boil();
+    // progress: starts when the section's top is 40% of the way down the screen, done when it reaches the top
+    const progress = () => { const r = section.getBoundingClientRect(); return (innerHeight * 0.4 - r.top) / (innerHeight * 0.4); };
+    draw(reduceMotion ? 1 : progress());
+    label();
+    if (reduceMotion) { $('.mission-boil', section).pauseAnimations(); return; }
+    let lastScroll = 0, visible = false;
+    // labels update on the next frame, after the drift (below) has moved the scene for this scroll
+    let labelQueued = false;
+    const queueLabel = () => { if (!labelQueued) { labelQueued = true; requestAnimationFrame(() => { labelQueued = false; label(); }); } };
+    // the tags' boil (an SVG animation) pauses while scrolling and whenever the section is off screen
+    const tagBoil = $('.mission-boil', section);
+    let still = null;
+    addEventListener('scroll', () => {
+      lastScroll = performance.now(); draw(progress()); queueLabel();
+      if (!visible) return;
+      section.classList.add('scrolling');
+      clearTimeout(still);
+      still = setTimeout(() => section.classList.remove('scrolling'), 180);
+    }, { passive: true });
+    addEventListener('resize', () => { draw(progress()); queueLabel(); });
+    new IntersectionObserver(([e]) => {
+      visible = e.isIntersecting && e.intersectionRect.height > 0;
+      if (visible) tagBoil.unpauseAnimations(); else tagBoil.pauseAnimations();
+    }, { threshold: [0, 0.01] }).observe(section);
+    setInterval(() => { if (visible && performance.now() - lastScroll > 180) boil(); }, 150);
+  })();
+
+  // Parallax: the scene drifts down a little as the section passes (the photo has room above, not below)
+  if (reduceMotion) return;
+  function drift() {
     const r = section.getBoundingClientRect();
     if (r.bottom < 0 || r.top > innerHeight) return;
-    // -1 when the section enters at the bottom, +1 when it leaves at the top
-    const p = (innerHeight / 2 - (r.top + r.height / 2)) / (innerHeight / 2 + r.height / 2);
-    img.style.transform = `translateY(${p * r.height * 0.15}px)`;
+    const p = (innerHeight / 2 - (r.top + r.height / 2)) / (innerHeight / 2 + r.height / 2); // -1 → +1
+    scene.style.transform = `translateY(${Math.max(0, Math.min(2, p + 1)) * 45}px)`;
   }
-  addEventListener('scroll', update, { passive: true });
-  addEventListener('resize', update);
-  update();
+  addEventListener('scroll', drift, { passive: true });
+  addEventListener('resize', drift);
+  drift();
 })();
 
 /* ───────── Intro animation (experimental) ─────────
@@ -726,18 +882,50 @@ const intro = (function () {
 
   // Constellation line: revealed by camera progress (0 → 1), so it's drawn as the camera travels, not word by word.
   // Boil: every 150ms the line is re-drawn through slightly nudged points (hand-drawn wobble, no costly filter).
-  const cLine = $('.c-line', el);
+  // A pre-blurred copy sits on top and fades in toward the top of the screen (depth blur, like the photo).
+  const cSvg = $('.intro-constellation', el), cLine = $('.c-line', cSvg);
   const cPts = cLine.dataset.points.trim().split(/\s+/).map(p => p.split(',').map(Number));
-  const cDots = cPts.map(([x, y]) => {
+  // the first dot sits centred just under the opening "think" (measured, since the word's width depends on the font)
+  const FIRST_DOT_GAP = 6;
+  const firstDotSpot = () => { const w = words[0].el, [, right, top] = TRAIL[0]; return [right - w.offsetWidth / 2, top + w.offsetHeight + FIRST_DOT_GAP]; };
+  cPts[0] = firstDotSpot();
+  // crop both svgs to the line (+ room for the dots and blur) so the masks cover as little as possible
+  const C_PAD = 24, xs = cPts.map(p => p[0]), ys = cPts.map(p => p[1]);
+  const cBox = { x: Math.min(...xs) - C_PAD, y: Math.min(...ys) - C_PAD, w: Math.max(...xs) - Math.min(...xs) + C_PAD * 2, h: Math.max(...ys) - Math.min(...ys) + C_PAD * 2 };
+  cSvg.setAttribute('viewBox', `${cBox.x} ${cBox.y} ${cBox.w} ${cBox.h}`);
+  cSvg.setAttribute('width', cBox.w); cSvg.setAttribute('height', cBox.h);
+  Object.assign(cSvg.style, { left: cBox.x + 'px', top: cBox.y + 'px' });
+  stage.append(cSvg); // after the words, so the line draws on top of them
+  const cSoft = cSvg.cloneNode(true);
+  cSoft.classList.add('soft');
+  $('defs', cSvg).remove();
+  $('g', cSoft).setAttribute('filter', 'url(#c-soft)');
+  cSvg.after(cSoft);
+  const cSoftLine = $('.c-line', cSoft);
+  const cDots = cPts.map(([x, y]) => [cSvg, cSoft].map(svg => {
     const d = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     d.setAttribute('class', 'c-dot'); d.setAttribute('cx', x); d.setAttribute('cy', y); d.setAttribute('r', 5);
-    cLine.parentNode.append(d);
+    $('g', svg).append(d);
     return d;
-  });
+  }));
   const cCum = [0];
-  for (let i = 1; i < cPts.length; i++) cCum.push(cCum[i - 1] + Math.hypot(cPts[i][0] - cPts[i - 1][0], cPts[i][1] - cPts[i - 1][1]));
-  const cLen = cCum[cCum.length - 1];
-  let cDrawn = 0, cJitterLen = cLen;
+  let cLen = 0;
+  function measureLine() {
+    for (let i = 1; i < cPts.length; i++) cCum[i] = cCum[i - 1] + Math.hypot(cPts[i][0] - cPts[i - 1][0], cPts[i][1] - cPts[i - 1][1]);
+    cLen = cCum[cCum.length - 1];
+  }
+  measureLine();
+  let cDrawn = 0, cJitterLen = cLen, cSoftLen = cLen;
+  // the blurred copy doesn't wobble (it can't be seen under the blur, and re-blurring it every tick is costly)
+  function setSoftLine() {
+    cSoftLine.setAttribute('points', cPts.map(p => p.join(',')).join(' '));
+    cSoftLen = cSoftLine.getTotalLength();
+    cSoftLine.style.strokeDasharray = cSoftLen;
+    cSoftLine.style.strokeDashoffset = cSoftLen * (1 - cDrawn / cLen);
+    cDots.forEach(([, d], i) => { d.setAttribute('cx', cPts[i][0]); d.setAttribute('cy', cPts[i][1]); });
+  }
+  // re-centre the first dot once the real font has loaded (the word may have changed width)
+  document.fonts.ready.then(() => { const prog = cDrawn / cLen; cPts[0] = firstDotSpot(); measureLine(); setSoftLine(); boilLine(); drawLine(prog, true); });
   function boilLine() {
     const j = () => (Math.random() - 0.5) * 1.6; // ±0.8px
     const out = [];
@@ -754,18 +942,20 @@ const intro = (function () {
     cJitterLen = cLine.getTotalLength();
     cLine.style.strokeDasharray = cJitterLen;
     cLine.style.strokeDashoffset = cJitterLen * (1 - cDrawn / cLen);
-    cDots.forEach((d, i) => { d.setAttribute('cx', (cPts[i][0] + j() * 0.6).toFixed(1)); d.setAttribute('cy', (cPts[i][1] + j() * 0.6).toFixed(1)); });
+    cDots.forEach(([d], i) => { d.setAttribute('cx', (cPts[i][0] + j() * 0.6).toFixed(1)); d.setAttribute('cy', (cPts[i][1] + j() * 0.6).toFixed(1)); });
   }
-  function drawLine(progress) {
+  function drawLine(progress, force) {
     const len = Math.max(0, Math.min(1, progress)) * cLen;
-    if (Math.abs(len - cDrawn) < 0.5 && len !== 0 && len !== cLen) return;
+    if (!force && Math.abs(len - cDrawn) < 0.5 && len !== 0 && len !== cLen) return;
     cDrawn = len;
     cLine.style.strokeDashoffset = cJitterLen * (1 - len / cLen);
-    cDots.forEach((d, i) => d.classList.toggle('on', len >= cCum[i] - 0.5 && (len > 0 || i === 0)));
+    cSoftLine.style.strokeDashoffset = cSoftLen * (1 - len / cLen);
+    cDots.forEach((pair, i) => pair.forEach(d => d.classList.toggle('on', len >= cCum[i] - 0.5 && (len > 0 || i === 0))));
   }
+  setSoftLine();
   boilLine();
   drawLine(0);
-  if (!reduceMotion) setInterval(() => { if (document.body.classList.contains('intro-visible') && !el.classList.contains('scrolling') && !el.classList.contains('no-line')) boilLine(); }, 150);
+  if (!reduceMotion) setInterval(() => { if (document.body.classList.contains('intro-visible') && !el.classList.contains('scrolling') && !el.classList.contains('no-line') && !perfOff('line')) boilLine(); }, 150);
 
   // Letter scramble, shared by the hero title and the opening "think". Letters are wrapped (inside word wrappers so
   // lines only break between words); the scramble glyph floats over each letter's real spot, so nothing jitters.
@@ -845,7 +1035,7 @@ const intro = (function () {
 
   const title = $('.intro-title', el);
   const titleScr = makeScrambler(title);
-  const letters = titleScr.letters;
+  const titleWords = $$('.tt-word', title);
   const hideTitle = titleScr.hide, settleTitle = titleScr.settle, scrambleTitle = () => titleScr.play(SCRAMBLE_PRESETS.light);
   // the opening "think" scrambles in on the dark screen instead of fading in
   words[0].el.classList.add('no-in');
@@ -857,7 +1047,7 @@ const intro = (function () {
   let lead = 0, collapsed = false;
   function layout() {
     const s = scale();
-    lead = collapsed ? TOP_ROOM * s : Math.max(TOP_ROOM * s, innerHeight / 2 - FIRST.y * s);
+    lead = Math.round(collapsed ? TOP_ROOM * s : Math.max(TOP_ROOM * s, innerHeight / 2 - FIRST.y * s)); // whole px keeps the sections below on whole pixels
     el.style.setProperty('--lead', lead + 'px');
     // continue the hero gradient's slope upward through the space above it (no flat band, no line where it starts)
     const up = lead / s, top = [159, 144, 203].map((v, k) => Math.round(Math.max(0, Math.min(255, v - [-19, 37, 6][k] / 748 * up))));
@@ -903,16 +1093,30 @@ const intro = (function () {
       churn() { for (let i = 0; i < dots.length; i++) if (Math.random() < SPECKLE_CHURN) dots[i] = newDot(); },
       // depth: whether to soften dots near the top of the screen. Without `force`, it skips the redraw unless the
       // blur zone has moved over this canvas by a few px (most scroll frames change nothing visible here).
-      blurred: false, lastTop: null,
+      // On scroll it only redraws the band that's in (or just left) the blur zone; the rest of the canvas stays as is.
+      blurred: false, lastTop: null, band: null,
       draw(depth, force) {
-        const s = scale(), top = canvas.getBoundingClientRect().top;
-        const inZone = depth && top < innerHeight * DEPTH_ZONE;
+        const s = scale(), r = canvas.getBoundingClientRect(), top = r.top, zone = innerHeight * DEPTH_ZONE;
+        const inZone = depth && top < zone && r.bottom > 0; // entirely off the top of the screen → nothing to update
         if (!force && !inZone && !this.blurred) return;
         if (!force && inZone && this.lastTop !== null && Math.abs(top - this.lastTop) < 4) return;
+        // band in stage px: from the screen's top edge to the bottom of the zone, plus wherever it was last time
+        // (dots leaving the zone turn sharp again), padded by the largest soft dot
+        const now = [-top / s, (zone - top) / s], pad = 3 + DEPTH_MAX * 1.44 / s;
+        let y0 = 0, y1 = h;
+        if (!force) { // when nothing is blurred yet the canvas is all sharp, so only the new band needs drawing
+          const was = this.blurred && this.band ? this.band : now;
+          y0 = Math.max(0, Math.min(now[0], was[0]) - pad); y1 = Math.min(h, Math.max(now[1], was[1]) + pad);
+        }
         this.lastTop = top;
         this.blurred = inZone;
-        ctx.clearRect(0, 0, w, h);
+        this.band = inZone ? now : null;
+        if (y1 <= y0) return;
+        ctx.save();
+        ctx.beginPath(); ctx.rect(0, y0, w, y1 - y0); ctx.clip();
+        ctx.clearRect(0, y0, w, y1 - y0);
         for (const dot of dots) {
+          if (dot.y + dot.d + pad < y0 || dot.y - pad > y1) continue;
           const blur = depth ? depthAt(top + dot.y * s) / s : 0; // in stage px
           if (blur < 0.3) {
             ctx.globalAlpha = dot.a; ctx.fillStyle = dot.c; ctx.fillRect(dot.x, dot.y, dot.d, dot.d);
@@ -923,7 +1127,7 @@ const intro = (function () {
             ctx.drawImage(sprites[dot.c], dot.x + dot.d / 2 - r, dot.y + dot.d / 2 - r, r * 2, r * 2);
           }
         }
-        ctx.globalAlpha = 1;
+        ctx.restore();
       },
     };
   }
@@ -931,7 +1135,7 @@ const intro = (function () {
   const leadSpeckles = speckleField($('.intro-speckles-lead', el), () => innerWidth / scale(), () => lead / scale());
   let speckReady = true, depthOn = true;
   function sizeSpeckles() { heroSpeckles.size(); leadSpeckles.size(); }
-  function drawSpeckles(force) { heroSpeckles.draw(depthOn, force); leadSpeckles.draw(depthOn, force); }
+  function drawSpeckles(force) { if (perfOff('speckles')) return; heroSpeckles.draw(depthOn, force); leadSpeckles.draw(depthOn, force); }
   function churnSpeckles() { heroSpeckles.churn(); leadSpeckles.churn(); drawSpeckles(true); }
   const softPhoto = $('.intro-photo-soft', el);
   // Bake the softened photo once (canvas blur) so the browser doesn't re-blur it every frame
@@ -944,43 +1148,63 @@ const intro = (function () {
     if (canBlur) ctx.filter = 'blur(6px)'; else softPhoto.classList.add('css-blur');
     ctx.drawImage(src, 0, 0, softPhoto.width, softPhoto.height);
   })();
-  let lastMask = '', titleBlurred = false;
+  let lastMask = '', lastCMask = '', titleBlurred = false;
   function blurWords() {
     const s = scale(), zone = innerHeight * DEPTH_ZONE;
     // read every position first (reading between writes would force the page to re-layout each time)
     const shown = words.filter(w => w.el.classList.contains('on'));
     const wordRects = shown.map(w => w.el.getBoundingClientRect());
     const titleRect = title.getBoundingClientRect();
-    const doLetters = depthOn && titleRect.top < zone || titleBlurred;
-    const letterRects = doLetters ? letters.map(({ l }) => l.getBoundingClientRect()) : null;
-    const pr = softPhoto.getBoundingClientRect();
+    const doTitle = depthOn && titleRect.top < zone || titleBlurred;
+    const titleRects = doTitle ? titleWords.map(w => w.getBoundingClientRect()) : null;
+    const pr = softPhoto.getBoundingClientRect(), cr = cSvg.getBoundingClientRect();
     // then write, only where the (quarter-pixel-rounded) blur actually changed
+    // a GPU filter on an element with its own layer (will-change in style.css): changing the amount while scrolling
+    // needs no redrawing, so it can't hold up the scroll (a redrawn text-shadow blur stuttered with smooth scroll on)
     const setBlur = (node, px) => {
-      const v = px > 0.3 ? Math.round(px * 2) / 2 : 0; // half-pixel steps: fewer repaints, same look
+      const v = px > 0.3 && !perfOff('textBlur') ? Math.round(px * 2) / 2 : 0; // half-pixel steps
       if (node._blur === v) return;
       node._blur = v;
       node.style.filter = v ? `blur(${v}px)` : '';
     };
     shown.forEach((w, i) => {
-      const r = wordRects[i], px = depthOn ? depthAt(r.top + r.height / 2) / s : 0;
+      const r = wordRects[i], px = depthOn && r.bottom > -40 ? depthAt(r.top + r.height / 2) / s : 0; // fully off the top → no blur (it's re-applied before it comes back)
       setBlur(w.el, px);
       w.el.classList.toggle('blurry', px > 0.6); // the boil wobble pauses where it can't be seen anyway
     });
-    if (doLetters) {
+    // title: blurred a whole word at a time (4 layers rather than ~30 letters)
+    if (doTitle) {
       titleBlurred = false;
-      letters.forEach(({ l }, i) => {
-        const r = letterRects[i], px = depthOn && r.top < zone ? depthAt(r.top + r.height / 2) / s : 0;
+      titleWords.forEach((w, i) => {
+        const r = titleRects[i], px = depthOn && r.top < zone && r.bottom > -40 ? depthAt(r.top + r.height / 2) / s : 0;
         if (px > 0.2) titleBlurred = true;
-        setBlur(l, px);
+        setBlur(w, px);
       });
     }
     // photo: the softened copy fades in toward the top of the screen (mask in the photo's own px, 4px steps)
+    // only bother once the visible part of the photo (people + grass start ~210px into the image) reaches the
+    // blur zone; above that it's transparent sky, so re-masking it every frame would be wasted work
+    const PHOTO_CONTENT_TOP = 210;
+    const step = v => Math.round(v / 12) * 12; // masks move in 12px steps (the soft gradient hides it)
     let mask = 'linear-gradient(transparent, transparent)';
-    if (depthOn && pr.top < zone) {
-      const step = v => Math.round(v / 12) * 12; // mask moves in 12px steps (soft gradient hides it)
+    if (depthOn && pr.top + PHOTO_CONTENT_TOP * s < zone) {
       mask = `linear-gradient(to bottom, #000 ${step(-pr.top / s)}px, transparent ${step((zone - pr.top) / s)}px)`;
     }
     if (mask !== lastMask) { lastMask = mask; softPhoto.style.setProperty('--soft-mask', mask); }
+    // constellation line: crossfade sharp → pre-blurred copy toward the top of the screen. The middle stop follows
+    // the words' blur curve (a quarter of full blur halfway up the zone). Only while part of the line is in the zone.
+    let cMask = 'none';
+    if (depthOn && !el.classList.contains('no-line') && cr.top < zone && cr.bottom > 0) {
+      const a = step(-cr.top / s), b = step((zone - cr.top) / s), m = (a + b) / 2;
+      cMask = `${a}px|${m}px|${b}px`;
+    }
+    if (cMask !== lastCMask) {
+      lastCMask = cMask;
+      const on = cMask !== 'none', [a, m, b] = cMask.split('|');
+      cSvg.style.setProperty('--c-mask', on ? `linear-gradient(to bottom, transparent ${a}, rgba(0,0,0,.75) ${m}, #000 ${b})` : 'none');
+      cSoft.style.setProperty('--c-mask', on ? `linear-gradient(to bottom, #000 ${a}, rgba(0,0,0,.25) ${m}, transparent ${b})` : 'none');
+      cSoft.classList.toggle('on', on);
+    }
   }
   addEventListener('resize', layout);
   layout();
@@ -991,21 +1215,22 @@ const intro = (function () {
     requestAnimationFrame(fx);
     if (!document.body.classList.contains('intro-on')) return;
     const visible = document.body.classList.contains('intro-visible');
-    const wantDepth = visible || playing; // the nav bar slides in when the intro leaves → blur off
-    if (wantDepth !== depthOn) { depthOn = wantDepth; blurWords(); drawSpeckles(true); }
+    const wantDepth = visible || playing; // blur off once the hero has scrolled away
+    if (wantDepth !== depthOn) { depthOn = wantDepth; blurWords(); drawSpeckles(); }
     if (!visible) return;
     const moved = scrollY !== lastScroll;
     lastScroll = scrollY;
-    if (!reduceMotion && now - lastSpeck > SPECKLE_TICK) { lastSpeck = now; churnSpeckles(); } // blur zone is re-applied on each beat
+    const userScrolling = el.classList.contains('scrolling');
+    if (!reduceMotion && !userScrolling && now - lastSpeck > SPECKLE_TICK) { lastSpeck = now; churnSpeckles(); } // pauses while you scroll; blur zone re-applied each beat
     // pause the word/line wobble while you scroll (the motion hides it anyway); it resumes as soon as you stop
     if (moved && !playing) {
       el.classList.add('scrolling');
       clearTimeout(scrollStill);
       scrollStill = setTimeout(() => el.classList.remove('scrolling'), 180);
     }
-    if (moved || playing) blurWords();
+    if (moved || playing) { blurWords(); drawSpeckles(); } // speckles: only the strip in the blur zone, and only every few px
     // Photo parallax: lines up with Figma when the camera lands; moves a little faster than the page around that
-    if (!reduceMotion) photo.style.transform = softPhoto.style.transform = `translateY(${(scrollY - endY()) * PHOTO_PARALLAX / scale()}px)`;
+    if (!reduceMotion && !perfOff('parallax')) photo.style.transform = softPhoto.style.transform = `translateY(${(scrollY - endY()) * PHOTO_PARALLAX / scale()}px)`;
   });
 
   // exact bottom of the hero (sub-pixel), rounded down so the next section never peeks in at the bottom
@@ -1102,7 +1327,7 @@ const intro = (function () {
     hideTitle();
     thinkScr.hide();
     drawLine(0);
-    words.forEach(w => { w.el.classList.remove('on'); w.el.style.filter = ''; });
+    words.forEach(w => { w.el.classList.remove('on'); w.el.style.filter = ''; w.el._blur = 0; });
     count.classList.remove('gone');
     count.textContent = '0%';
     stack.replaceChildren();
@@ -1247,15 +1472,238 @@ const intro = (function () {
   setLine(lineOn);
   lineBtn.addEventListener('click', () => { lineOn = !lineOn; setLine(lineOn); });
 
-  // Nav hides while the intro is on screen
-  new IntersectionObserver(([e]) => document.body.classList.toggle('intro-visible', e.isIntersecting),
-    { rootMargin: '-80px 0px 0px 0px' }).observe(el);
+  // On the homepage the floating nav starts at the top of the section after the hero (style.css pushes it down
+  // by the hero's height), so it keeps the hero's height up to date
+  new ResizeObserver(() => document.documentElement.style.setProperty('--intro-h', el.offsetHeight + 'px')).observe(el);
+  // intro-visible: the hero is on screen (its depth blur and wobble only run then)
+  // (the word wobble is an SVG animation; it's paused while the hero is off screen so it isn't re-rendered for nothing)
+  const boilSvg = $('#boil', el).ownerSVGElement;
+  new IntersectionObserver(([e]) => {
+    // (merely touching the screen edge counts as "intersecting"; that kept the hero effects running out of sight)
+    const on = e.isIntersecting && e.intersectionRect.height > 0;
+    document.body.classList.toggle('intro-visible', on);
+    if (on) boilSvg.unpauseAnimations(); else boilSvg.pauseAnimations();
+  }, { threshold: [0, 0.01] }).observe(el);
   introHook = page => {
     document.body.classList.toggle('intro-on', page === 'home');
     if (page !== 'home') skip();
   };
 
   return { play, showAll };
+})();
+
+/* ───────── Click anywhere to place a star sticker ─────────
+   Random sticker, size and angle; its colour follows the star colour panel (press S). Clicks on links, buttons, form
+   fields, the draggable stickers, open panels and dev UI do their normal thing instead. Placed stars can be dragged
+   around; they stay on the page you placed them on (until you change page). */
+(function clickStars() {
+  const STICKERS = ['sticker62.png', 'sticker63.png']; // not sticker60: its halftone dots are chunkier than the other two
+  const SKIP = 'a, button, input, select, textarea, label, summary, [role="button"], [contenteditable], .cw-deco, .star, .modal, .pg, .perf-panel, [data-dev-ui], #doubletake';
+  const SITE_COLORS = [['#00d37f', 'Green'], ['#c6f221', 'Lime'], ['#c5b6f1', 'Lavender'], ['#014751', 'Teal'], ['#1a1a32', 'Navy'], ['#fdfbef', 'Cream']];
+
+  // Colour settings (remembered in this browser). mode: 'original' = the PNGs as they are, 'any' = a random hue,
+  // 'palette' = tinted with a random pick from the colours switched on.
+  const DEFAULTS = { mode: 'palette', on: ['none', '#00d37f', '#c6f221', '#c5b6f1'], custom: [] }; // her pick, 2026-11-03
+  let cfg = DEFAULTS;
+  try { cfg = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('spr-star-colors') || '{}') }; } catch {}
+  const save = () => { try { localStorage.setItem('spr-star-colors', JSON.stringify(cfg)); } catch {} };
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+
+  // A star: the PNG, plus (palette mode) a colour layer cut to its shape. The PNG is turned grey and multiplied by the
+  // colour, so the halftone dots and shading stay but everything reads in that colour.
+  function makeStar(size) {
+    const star = document.createElement('span');
+    star.className = 'star';
+    const src = 'assets/' + pick(STICKERS);
+    star.innerHTML = `<img src="${src}" alt="" draggable="false">`;
+    const color = cfg.mode === 'palette' && cfg.on.length ? pick(cfg.on) : null; // 'none' = the PNG's own colours
+    if (color && color !== 'none') {
+      star.classList.add('tinted');
+      const tint = document.createElement('i');
+      tint.style.setProperty('--m', `url("${src}")`);
+      tint.style.background = color;
+      star.append(tint);
+    } else if (cfg.mode === 'any') $('img', star).style.filter = `hue-rotate(${Math.round(Math.random() * 360)}deg)`;
+    Object.assign(star.style, { width: size + 'px', height: size + 'px' });
+    star.style.setProperty('--r', Math.round(Math.random() * 360 - 180) + 'deg');
+    return star;
+  }
+
+  const layer = document.createElement('div');
+  layer.className = 'star-layer';
+  layer.setAttribute('aria-hidden', 'true');
+  document.body.append(layer);
+  let down = null;
+  addEventListener('pointerdown', e => { down = e.button === 0 ? [e.clientX, e.clientY] : null; });
+  addEventListener('click', e => {
+    if (e.button !== 0 || e.defaultPrevented || e.target.closest?.(SKIP)) return;
+    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return; // a drag or text selection, not a click
+    if (String(getSelection()).length) return;
+    const size = 32 + Math.random() * 58; // 32–90px
+    const star = makeStar(size);
+    Object.assign(star.style, { left: e.pageX - size / 2 + 'px', top: e.pageY - size / 2 + 'px' });
+    layer.append(star);
+  });
+  addEventListener('hashchange', () => layer.replaceChildren());
+
+  // Drag placed stars around (the one you grab comes to the front; clicking a star never spawns another)
+  let drag = null, topZ = 1;
+  layer.addEventListener('pointerdown', e => {
+    const star = e.target.closest('.star');
+    if (!star || e.button !== 0) return;
+    e.preventDefault();
+    star.setPointerCapture(e.pointerId);
+    star.style.zIndex = ++topZ;
+    star.classList.add('dragging');
+    drag = { star, x: e.pageX, y: e.pageY, left: parseFloat(star.style.left), top: parseFloat(star.style.top) };
+  });
+  layer.addEventListener('pointermove', e => {
+    if (!drag) return;
+    drag.star.style.left = drag.left + e.pageX - drag.x + 'px';
+    drag.star.style.top = drag.top + e.pageY - drag.y + 'px';
+  });
+  const drop = () => { if (drag) { drag.star.classList.remove('dragging'); drag = null; } };
+  layer.addEventListener('pointerup', drop);
+  layer.addEventListener('pointercancel', drop);
+
+  // Star colour panel (press S)
+  const panel = document.createElement('aside');
+  panel.className = 'pg star-pg';
+  panel.setAttribute('data-dev-ui', '');
+  panel.setAttribute('data-lenis-prevent', '');
+  panel.setAttribute('aria-label', 'Star colours');
+  panel.innerHTML = `
+    <div class="pg-head"><p class="mono semi c-lime">Star colours</p><button class="mono-s pg-x" data-act="close">Close ✕</button></div>
+    <div class="pg-row"><p class="mono-s c-muted">Colours come from</p>
+      <div class="pg-chips" data-mode-chips>
+        <button data-mode="original">Original PNGs</button><button data-mode="any">Any colour</button><button data-mode="palette">My palette</button>
+      </div>
+    </div>
+    <div class="pg-row" data-palette-row><p class="mono-s c-muted">Palette · click to switch a colour on/off</p>
+      <div class="pg-swatches" data-swatches></div>
+      <p class="mono-s c-muted star-pg-note">Add your own with the rainbow square. Custom colours can be removed with ✕.</p>
+    </div>
+    <div class="pg-row"><p class="mono-s c-muted">Preview</p><div class="star-pg-preview" data-preview></div></div>
+    <div class="pg-foot"><button class="mono-s pg-x" data-act="clear">Clear stars on this page</button><button class="mono-s pg-x" data-act="copy">Copy settings</button></div>`;
+  document.body.append(panel);
+
+  function render() {
+    $$('[data-mode]', panel).forEach(b => b.classList.toggle('on', b.dataset.mode === cfg.mode));
+    $('[data-palette-row]', panel).classList.toggle('dim', cfg.mode !== 'palette');
+    const sw = $('[data-swatches]', panel);
+    sw.innerHTML = [['none', 'No colour (the original PNG)'], ...SITE_COLORS, ...cfg.custom.map(c => [c, 'Custom ' + c])].map(([c, name]) =>
+      `<span class="star-sw"><button data-c="${c}" style="--sw:${c}" title="${name}" class="${c === 'none' ? 'star-sw-none ' : ''}${cfg.on.includes(c) ? 'on' : ''}"></button>${cfg.custom.includes(c) ? `<button class="star-sw-x" data-remove="${c}" title="Remove">✕</button>` : ''}</span>`
+    ).join('') + '<label class="pg-custom" title="Add a colour"><input type="color" value="#ff6b4a" data-add></label>';
+    const prev = $('[data-preview]', panel);
+    prev.replaceChildren(...Array.from({ length: 7 }, () => makeStar(36)));
+  }
+  panel.addEventListener('click', e => {
+    const t = e.target;
+    if (t.dataset.mode) { cfg = { ...cfg, mode: t.dataset.mode }; }
+    else if (t.dataset.c) { cfg = { ...cfg, mode: 'palette', on: cfg.on.includes(t.dataset.c) ? cfg.on.filter(c => c !== t.dataset.c) : [...cfg.on, t.dataset.c] }; }
+    else if (t.dataset.remove) { const c = t.dataset.remove; cfg = { ...cfg, custom: cfg.custom.filter(x => x !== c), on: cfg.on.filter(x => x !== c) }; }
+    else if (t.dataset.act === 'close') return panel.classList.remove('open');
+    else if (t.dataset.act === 'clear') return layer.replaceChildren();
+    else if (t.dataset.act === 'copy') {
+      const names = Object.fromEntries(SITE_COLORS);
+      names.none = 'no colour (original PNG)';
+      navigator.clipboard?.writeText(`Star colours: ${cfg.mode === 'palette' ? 'palette of ' + cfg.on.map(c => c === 'none' ? names.none : names[c] ? `${names[c]} ${c}` : c).join(', ') : cfg.mode === 'any' ? 'any colour (random hue)' : 'original PNG colours'}`);
+      t.textContent = 'Copied ✓'; setTimeout(() => { t.textContent = 'Copy settings'; }, 1200);
+      return;
+    }
+    else if (t.closest('[data-preview]')) { /* click the preview to re-roll */ }
+    else return;
+    save(); render();
+  });
+  panel.addEventListener('change', e => {
+    if (!e.target.matches('[data-add]')) return;
+    const c = e.target.value.toLowerCase();
+    if (!SITE_COLORS.some(([x]) => x === c) && !cfg.custom.includes(c)) cfg = { ...cfg, custom: [...cfg.custom, c] };
+    cfg = { ...cfg, mode: 'palette', on: cfg.on.includes(c) ? cfg.on : [...cfg.on, c] };
+    save(); render();
+  });
+  addEventListener('keydown', e => {
+    if (e.key.toLowerCase() !== 's' || e.metaKey || e.ctrlKey || e.target.closest?.('input, textarea')) return;
+    if (panel.classList.toggle('open')) render();
+  });
+})();
+
+/* ───────── Lag test panel (press P) ─────────
+   Switch effects off one at a time while scrolling past a laggy spot; the meter counts frames that came late. */
+(function perfPanel() {
+  const SWITCHES = [
+    ['smooth', 'Smooth scroll', 'reloads the page'],
+    ['cursor', 'Custom cursor'],
+    ['speckles', 'Hero speckles'],
+    ['photo', 'Hero photo'],
+    ['photoBlur', 'Photo’s top blur'],
+    ['parallax', 'Photo parallax'],
+    ['textBlur', 'Word + title blur'],
+    ['wobble', 'Word wobble'],
+    ['line', 'Constellation line'],
+    ['lineBlur', 'Line’s top blur'],
+    ['navFrost', 'Nav frosted glass'],
+    ['crossword', 'Crossword section'],
+  ];
+  const panel = document.createElement('div');
+  panel.className = 'perf-panel';
+  panel.setAttribute('data-dev-ui', '');
+  panel.innerHTML = `<div class="perf-head mono-s"><span>Lag test · P to close</span><button class="perf-reset mono-s">All on</button></div>
+    <div class="perf-meter mono-s">Scroll to measure…</div>
+    <div class="perf-list">${SWITCHES.map(([k, label, note]) => `<label class="mono-s"><input type="checkbox" data-k="${k}" ${perfOff(k) ? '' : 'checked'}> ${label}${note ? ` <i>(${note})</i>` : ''}</label>`).join('')}</div>`;
+  document.body.append(panel);
+  const save = () => { try { localStorage.setItem('spr-perf-off', JSON.stringify([...PERF_OFF])); } catch {} };
+  function set(k, on) {
+    on ? PERF_OFF.delete(k) : PERF_OFF.add(k);
+    document.documentElement.classList.toggle('perf-off-' + k, !on);
+    save();
+    if (k === 'smooth') location.reload();
+    if (k === 'cursor') document.documentElement.classList.toggle('has-cursor', on);
+  }
+  panel.addEventListener('change', e => { const k = e.target.dataset.k; if (k) set(k, e.target.checked); });
+  $('.perf-reset', panel).addEventListener('click', () => {
+    const reload = PERF_OFF.has('smooth');
+    [...PERF_OFF].forEach(k => set(k, true));
+    $$('input', panel).forEach(i => { i.checked = true; });
+    if (reload) location.reload();
+  });
+  if (perfOff('cursor')) document.documentElement.classList.remove('has-cursor');
+
+  // Meter: the screen's frame time is the shortest gap seen; a frame counts as late if it took 1.5× that or more
+  let open = false, last = 0, base = 1000, gaps = [];
+  function tick(t) {
+    if (!open) return;
+    if (last) {
+      const g = t - last;
+      base = Math.min(base, g);
+      gaps.push([t, g]);
+      gaps = gaps.filter(([at]) => t - at < 3000);
+    }
+    last = t;
+    if (gaps.length % 10 === 0) {
+      const late = gaps.filter(([, g]) => g > base * 1.5), worst = Math.max(0, ...gaps.map(([, g]) => g));
+      $('.perf-meter', panel).innerHTML = `Screen: ${Math.round(1000 / base)} fps<br>Late frames (last 3s): <b>${late.length}</b> · worst ${Math.round(worst)}ms`;
+    }
+    requestAnimationFrame(tick);
+  }
+  addEventListener('keydown', e => {
+    if (e.key.toLowerCase() !== 'p' || e.metaKey || e.ctrlKey || e.target.closest?.('input, textarea')) return;
+    open = panel.classList.toggle('open');
+    if (open) { last = 0; gaps = []; requestAnimationFrame(tick); }
+  });
+})();
+
+/* ───────── Shift + H hides all dev UI (dev buttons and panels), remembered in this browser ─────────
+   doubletake has the same shortcut; when its overlay is on the page, it handles the key instead. */
+(function hideDevUI() {
+  const KEY = 'spr-hide-dev';
+  const set = on => { document.documentElement.classList.toggle('hide-dev', on); try { localStorage.setItem(KEY, on ? '1' : '0'); } catch {} };
+  try { if (localStorage.getItem(KEY) === '1') document.documentElement.classList.add('hide-dev'); } catch {}
+  addEventListener('keydown', e => {
+    if (e.key !== 'H' || !e.shiftKey || e.repeat || e.metaKey || e.ctrlKey || e.target.closest?.('input, textarea')) return;
+    if (document.getElementById('doubletake')) return;
+    set(!document.documentElement.classList.contains('hide-dev'));
+  });
 })();
 
 route();
