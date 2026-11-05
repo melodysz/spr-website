@@ -1816,9 +1816,9 @@ const intro = (function () {
 (function gridPanel() {
   const grid = $('.mission-grid');
   if (!grid) return;
-  const COLORS = [['#000000', 'Black (current)'], ['#3a3a5c', 'Line'], ['#1a1a32', 'Navy'], ['#014751', 'Teal'], ['#00d37f', 'Green'], ['#c6f221', 'Lime'], ['#c5b6f1', 'Lavender'], ['#fdfbef', 'Cream'], ['#ffffff', 'White']];
+  const COLORS = [['#fdfbef', 'Cream (current)'], ['#000000', 'Black'], ['#3a3a5c', 'Line'], ['#1a1a32', 'Navy'], ['#014751', 'Teal'], ['#00d37f', 'Green'], ['#c6f221', 'Lime'], ['#c5b6f1', 'Lavender'], ['#ffffff', 'White']];
   const BLENDS = ['color-burn', 'multiply', 'overlay', 'soft-light', 'screen', 'normal'];
-  const DEFAULTS = { color: '#000000', opacity: 30, blend: 'normal' }; // her pick, 2026-11-03
+  const DEFAULTS = { color: '#fdfbef', opacity: 65, blend: 'overlay' }; // her pick, 2026-11-04
   let cfg = DEFAULTS;
   try { cfg = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('spr-grid') || '{}') }; } catch {}
   const panel = document.createElement('aside');

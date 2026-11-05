@@ -99,17 +99,20 @@ body.intro-on .page.active { animation: none; } /* the homepage intro opens in p
 /* Scaled art stages (crossword, reel, sticker clock) */
 .stage-wrap { position: relative; height: round(calc(var(--h) * var(--s)), 1px); overflow: hidden; } /* whole px, so the sections below start on a pixel (no 1px sliver) */
 .stage { position: absolute; left: 50%; top: 0; width: 1470px; height: var(--h); transform: translateX(-50%) scale(var(--s)); transform-origin: top center; }
-/* Full-screen sections (her rule: fill the viewport unless the Figma frame is noticeably shorter). The section grows
-   to the screen height and shows more of its art instead of stretching it; each picks where the extra room goes.
-   4 Impacts stays its designed height (her call). */
+/* Full-screen sections (her rule: fill the viewport unless the Figma frame is noticeably shorter). Each runs a bit
+   past the screen (--full, 108% of its height): exactly one screen tall read as short with the nav bar over the top.
+   Contents sit a little lower than centre so they're centred in the room under the nav. The section grows and shows
+   more of its art instead of stretching it; each picks where the extra room goes. 4 Impacts stays its designed height
+   (her call). */
 @media (min-width: 901px) {
-  .home-intro .stage-wrap, .mission .stage-wrap, .what-we-do .stage-wrap { height: max(round(calc(var(--h) * var(--s)), 1px), 100vh); height: max(round(calc(var(--h) * var(--s)), 1px), 100svh); }
+  :root { --full: round(108vh, 1px); }
+  @supports (height: 1svh) { :root { --full: round(108svh, 1px); } }
+  .home-intro .stage-wrap, .mission .stage-wrap, .what-we-do .stage-wrap { height: max(round(calc(var(--h) * var(--s)), 1px), var(--full)); }
   .home-intro .stage, .what-we-do .stage { top: 50%; transform: translate(-50%, -50%) scale(var(--s)); transform-origin: center; } /* centred */
   .home-intro .stage { top: calc(50% + var(--drop) * var(--s)); }
+  .what-we-do .stage { top: calc(50% + 34px * var(--s)); }
   .mission .stage { top: auto; bottom: 0; transform-origin: bottom center; } /* more sky above */
-  /* the mission runs a bit past the screen (exactly one screen tall looked like it barely fit) */
-  .mission .stage-wrap { height: max(round(calc(var(--h) * var(--s)), 1px), round(108vh, 1px)); height: max(round(calc(var(--h) * var(--s)), 1px), round(108svh, 1px)); }
-  .insta { min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; justify-content: center; }
+  .insta { min-height: var(--full); padding-top: 188px; display: flex; flex-direction: column; justify-content: center; } /* +68px top = contents 34px lower */
 }
 
 /* ───────── Home: Intro animation (experimental) ───────── */
@@ -255,8 +258,8 @@ body.intro-on .intro-replay { display: block; }
 .mission-scene { position: absolute; inset: 0; will-change: transform; }
 .mission-photo { position: absolute; left: -154px; top: -474px; width: 1778px; height: 1336px; max-width: none; }
 /* faint, so it reads as texture; colour, strength and blend can be tried live with the grid panel (press G) */
-.mission-grid { position: absolute; left: 0; top: -474px; mix-blend-mode: var(--grid-blend, normal); opacity: var(--grid-opacity, .3); pointer-events: none; overflow: visible; }
-.mission-grid path { fill: none; stroke: var(--grid-color, #000); stroke-width: 0.279; }
+.mission-grid { position: absolute; left: 0; top: -474px; mix-blend-mode: var(--grid-blend, overlay); opacity: var(--grid-opacity, .65); pointer-events: none; overflow: visible; }
+.mission-grid path { fill: none; stroke: var(--grid-color, #fdfbef); stroke-width: 0.279; }
 .mission-speckles { position: absolute; left: 0; top: -474px; width: 1470px; height: 1336px; pointer-events: none; } /* the whole photo, so taller screens are covered */
 .mission-line { position: absolute; left: 307.04px; top: 39.53px; width: 955.08px; height: 708.675px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .mission-line .rot { position: relative; flex: none; width: 372.775px; height: 879.926px; rotate: 114.91deg; }
