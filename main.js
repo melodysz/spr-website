@@ -79,7 +79,7 @@ const NAV_H = () => { const nav = $('#nav'); return nav.offsetHeight + parseFloa
   let under = null; // element currently under the cursor
   function updateUnder(t) {
     under = t;
-    hovering = !!t?.closest('a, button, .has-letter, .cw-deco, .star-layer .star, .chip, .legend-item');
+    hovering = !!t?.closest('a, button, .cw-deco, .star-layer .star, .chip, .legend-item'); // not the crossword squares (her call)
     el.classList.toggle('on-green', !!t?.closest('.footer, .founders, .bg-green, .btn-green'));
     dark = isDark(t);
     sqCanvas.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
@@ -272,8 +272,11 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
   const stage = $('#crossword');
   // 19 × 14 cells, 46.14px apart, from (638, 139); the last column runs off the right edge like the design
   const COLS = 19, ROWS = 14, STEP = 46.14;
-  const x = c => 638 + STEP * c;
-  const y = r => 139 + STEP * r;
+  const x = c => STEP * c; // inside .cw-grid, which sits at (638, 139)
+  const y = r => STEP * r;
+  const grid = document.createElement('div');
+  grid.className = 'cw-grid';
+  stage.appendChild(grid);
 
   const words = [
     { w: 'EXPLORE', c: 2, r: 2, down: true },
@@ -294,17 +297,60 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
   };
 
   const cells = {};
-  for (let r = 0; r < ROWS; r++) {
+  // Extra permanent colour: about 1 in 10 plain squares (not a word square, not one of the design's coloured ones)
+  // gets a colour in the design's mix (mostly cream, then lavender, teal, green). A fixed pattern from each square's
+  // position, so it's the same every visit, extra rows included.
+  const DECOR = ['cream', 'cream', 'cream', 'cream', 'lavender', 'lavender', 'teal', 'teal', 'green', 'green'], DENSITY = 0.10;
+  const wordKeys = new Set(words.flatMap(w => [...w.w].map((_, i) => w.down ? `${w.c},${w.r + i}` : `${w.c + i},${w.r}`)));
+  const hash = (c, r) => { const v = Math.sin(c * 127.1 + r * 311.7) * 43758.5453; return v - Math.floor(v); };
+  function addRow(r) {
+    for (let c = 0; c < COLS; c++) {
+      const key = `${c},${r}`, h = hash(c, r);
+      if (!fills[key] && !wordKeys.has(key) && h < DENSITY) fills[key] = DECOR[Math.floor(h / DENSITY * DECOR.length)];
+    }
     for (let c = 0; c < COLS; c++) {
       const el = document.createElement('div');
       el.className = 'cw-cell';
       el.style.left = x(c) + 'px';
       el.style.top = y(r) + 'px';
+      el.dataset.key = `${c},${r}`;
       if (fills[`${c},${r}`]) el.style.background = `var(--${fills[`${c},${r}`]})`;
-      stage.appendChild(el);
+      grid.appendChild(el);
       cells[`${c},${r}`] = { el, words: [] };
     }
   }
+  for (let r = 0; r < ROWS; r++) addRow(r);
+  // Extra empty rows above and below the words: whole rows only, from a row below the nav bar down to just above the
+  // section's bottom edge (worked out from the real sizes, so it fits any screen; re-fitted on resize)
+  const GAP = 10; // screen px kept clear under the nav and above the bottom
+  const extra = {}; // row → its cells, for rows outside the 14 design rows
+  function fillHeight() {
+    const sec = stage.parentElement.getBoundingClientRect(), st = stage.getBoundingClientRect(), k = st.width / 1470;
+    if (!k) return;
+    const top = (sec.top + NAV_H() + GAP - st.top) / k - 139, bottom = (sec.bottom - GAP - st.top) / k - 139; // grid px
+    const first = Math.min(0, Math.ceil(top / STEP) + 1), last = Math.max(ROWS - 1, Math.floor((bottom - 46.638) / STEP));
+    for (const r of Object.keys(extra).map(Number)) if (r < first || r > last) { extra[r].forEach(el => el.remove()); delete extra[r]; }
+    for (let r = first; r <= last; r++) {
+      if ((r >= 0 && r < ROWS) || extra[r]) continue;
+      addRow(r);
+      extra[r] = Array.from({ length: COLS }, (_, c) => cells[`${c},${r}`].el);
+    }
+    edgeColour(first); edgeColour(last);
+  }
+  // the very top and bottom rows always get a few coloured squares too (same fixed pattern: the squares whose
+  // position-number is lowest win)
+  function edgeColour(r, want = 3) {
+    const keys = Array.from({ length: COLS }, (_, c) => `${c},${r}`);
+    let have = keys.filter(k => fills[k]).length;
+    for (const k of keys.filter(k => !fills[k] && !wordKeys.has(k)).sort((a, b) => hash(...a.split(',').map(Number)) - hash(...b.split(',').map(Number)))) {
+      if (have >= want) break;
+      const [c, r2] = k.split(',').map(Number);
+      fills[k] = ['lavender', 'teal', 'green'][Math.floor(hash(c + 31, r2 + 17) * 3)]; // visible colours (cream barely shows)
+      cells[k].el.style.background = `var(--${fills[k]})`;
+      have++;
+    }
+  }
+  new ResizeObserver(fillHeight).observe(stage.parentElement);
 
   words.forEach((word, wi) => {
     word.cells = [...word.w].map((ch, i) => {
@@ -317,10 +363,22 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     });
   });
 
-  // Hover a letter → highlight its word(s)
-  Object.values(cells).filter(c => c.words.length).forEach(cell => {
-    cell.el.addEventListener('mouseenter', () => cell.words.forEach(wi => words[wi].cells.forEach(c => c.el.classList.add('hl'))));
-    cell.el.addEventListener('mouseleave', () => $$('.cw-cell.hl', stage).forEach(el => el.classList.remove('hl')));
+  // Hover any square → it lights up in a random design-system colour (never the one it already shows), and goes
+  // straight back off when you move away. One handler on the grid covers every square, extra rows included.
+  const HOVER = ['green', 'lime', 'lavender', 'teal', 'navy'], DARK = ['teal', 'navy'];
+  grid.addEventListener('pointerover', e => {
+    const el = e.target.closest('.cw-cell');
+    if (!el || el.contains(e.relatedTarget)) return;
+    const now = (el.classList.contains('shown') ? (el.classList.contains('wd') ? 'green' : el.classList.contains('wa') ? 'lime' : '') : '') || fills[el.dataset.key] || '';
+    const pick = HOVER.filter(c => c !== now);
+    const c = pick[Math.floor(Math.random() * pick.length)];
+    el.style.setProperty('--lit', `var(--${c})`);
+    el.classList.add('lit');
+    el.classList.toggle('lit-dark', DARK.includes(c));
+  });
+  grid.addEventListener('pointerout', e => {
+    const el = e.target.closest('.cw-cell');
+    if (el && !el.contains(e.relatedTarget)) el.classList.remove('lit', 'lit-dark');
   });
 
   // Letters drop in word by word when the section scrolls into view
@@ -333,11 +391,25 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
   }, { threshold: 0.25 });
   io.observe(stage);
 
+  // Boil: runs while the crossword is on screen, freezes while you scroll (a frozen frame needs no redrawing)
+  const boilSvg = $('.cw-boil');
+  let onScreen = false, still = null, scrolling = false;
+  const syncBoil = () => (onScreen && !scrolling && !reduceMotion) ? boilSvg.unpauseAnimations() : boilSvg.pauseAnimations();
+  new IntersectionObserver(([e]) => { onScreen = e.isIntersecting && e.intersectionRect.height > 0; syncBoil(); }, { threshold: [0, 0.01] }).observe(stage.closest('.home-intro'));
+  addEventListener('scroll', () => {
+    if (!onScreen) return;
+    if (!scrolling) { scrolling = true; syncBoil(); }
+    clearTimeout(still);
+    still = setTimeout(() => { scrolling = false; syncBoil(); }, 180);
+  }, { passive: true });
+  syncBoil();
+
   // Stickers (draggable)
   const decos = [
     { src: 'sticker62.png', cx: 1341.47, cy: 270.66, w: 56.599, h: 54.102, rot: 31.99 },
     { src: 'sticker60.png', cx: 1402.37, cy: 342.92, w: 44.411, h: 38.767, rot: -43.33 },
     { src: 'sticker63.png', cx: 814.34, cy: 649.63, w: 50.492, h: 48.361, rot: 21.56, flipY: true },
+    { src: 'sticker63.png', cx: 558.5, cy: 394.9, w: 87.2, h: 87.2, rot: -91, tint: '#c6f221' }, // a click star she kept (lime)
   ];
   let topZ = 10;
   decos.forEach(d => {
@@ -345,7 +417,9 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     el.className = 'cw-deco';
     Object.assign(el.style, { left: d.cx - d.w / 2 + 'px', top: d.cy - d.h / 2 + 'px', width: d.w + 'px', height: d.h + 'px' });
     const imgStyle = `inset:0; width:100%; height:100%; object-fit:cover;${d.flipY ? ' transform:scaleY(-1);' : ''}`;
-    el.innerHTML = `<div class="rot" style="rotate:${d.rot}deg"><img src="assets/${d.src}" alt="" draggable="false" style="${imgStyle}"></div>`;
+    el.innerHTML = d.tint // tinted like the click stars: grey PNG multiplied by a colour cut to its shape
+      ? `<div class="rot" style="rotate:${d.rot}deg"><span class="star tinted" style="inset:0; --r:0deg"><img src="assets/${d.src}" alt="" draggable="false"><i style="--m:url('assets/${d.src}'); background:${d.tint}"></i></span></div>`
+      : `<div class="rot" style="rotate:${d.rot}deg"><img src="assets/${d.src}" alt="" draggable="false" style="${imgStyle}"></div>`;
     stage.appendChild(el);
 
     let start = null, pos = { x: 0, y: 0 };
@@ -458,31 +532,42 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
   }, { threshold: [0, 0.01] }).observe(stage);
 })();
 
-/* ───────── "What we do": sticker clock, hands follow the labels ───────── */
+/* ───────── "What we do": sticker clock — the hour hand follows the cursor and points at what you hover ───────── */
 (function clock() {
-  const PIVOT = { x: 752, y: 380 };
+  const stage = $('#clock');
+  const PIVOT = { x: 760, y: 354 }; // centre of the sticker ring (same as .hand in style.css)
   const long = $('#hand-long'), short = $('#hand-short');
-  let aLong = -45.65, aShort = -87.68, pointing = false, ticks = 0;
+  let aLong = -45, aShort = -87.68, ticks = 0, mode = null; // mode: null (ticking) | 'follow' | 'point'
   const render = () => { long.style.rotate = aLong + 'deg'; short.style.rotate = aShort + 'deg'; };
+  const angleTo = (x, y) => Math.atan2(y - PIVOT.y, x - PIVOT.x) * 180 / Math.PI;
+  const turnTo = a => { aShort += ((a - aShort) % 360 + 540) % 360 - 180; render(); }; // shortest way round
+  const setMode = m => { mode = m; short.classList.toggle('pointing', m === 'point'); short.classList.toggle('following', m === 'follow'); };
 
-  $$('.clock-label').forEach(label => {
-    const cx = parseFloat(label.style.left) + 57.5, cy = parseFloat(label.style.top) + 24;
-    const pointAt = Math.atan2(cy - PIVOT.y, cx - PIVOT.x) * 180 / Math.PI;
-    // Hovering a label swings the hour (short) hand to it; the minute hand keeps ticking
-    label.addEventListener('pointerenter', () => {
-      pointing = true;
-      short.classList.add('pointing');
-      aShort += ((pointAt - aShort) % 360 + 540) % 360 - 180; // shortest way round
-      render();
-    });
-    label.addEventListener('pointerleave', () => { pointing = false; short.classList.remove('pointing'); });
-    label.addEventListener('click', () => { pendingCard = label.dataset.card; });
+  // Clock items: the labels and the stickers. Hovering one snaps the hour hand to point straight at its centre.
+  const items = [...$$('.clock-label', stage), ...$$('.obj', stage)];
+  items.forEach(item => {
+    const centre = () => item.classList.contains('obj')
+      ? [parseFloat(item.style.left) + parseFloat(item.style.width) / 2, parseFloat(item.style.top) + parseFloat(item.style.height) / 2]
+      : [item.offsetLeft + Math.max(item.offsetWidth, item.scrollWidth) / 2, item.offsetTop + item.offsetHeight / 2]; // labels' text can overflow their box
+    item.addEventListener('pointerenter', () => { setMode('point'); turnTo(angleTo(...centre())); });
+    item.addEventListener('pointerleave', () => setMode('follow'));
   });
+  $$('.clock-label', stage).forEach(label => label.addEventListener('click', () => { pendingCard = label.dataset.card; }));
 
-  // Second-hand style: jump 6° once a second; the short hand jumps every 12 ticks
+  // Anywhere else over the clock, the hour hand follows the cursor
+  const section = stage.closest('.what-we-do');
+  section.addEventListener('pointermove', e => {
+    if (mode === 'point') return;
+    if (mode !== 'follow') setMode('follow');
+    const r = stage.getBoundingClientRect(), k = r.width / 1470;
+    turnTo(angleTo((e.clientX - r.left) / k, (e.clientY - r.top) / k));
+  });
+  section.addEventListener('pointerleave', () => setMode(null)); // stays where it is, then ticks on from there
+
+  // Second-hand style: the long hand jumps 6° once a second; the short hand jumps every 12 ticks (unless it's busy)
   if (!reduceMotion) setInterval(() => {
     aLong += 6;
-    if (++ticks % 12 === 0 && !pointing) aShort += 6;
+    if (++ticks % 12 === 0 && !mode) aShort += 6;
     render();
   }, 1000);
   render();
@@ -731,8 +816,28 @@ $('#contact-form').addEventListener('submit', e => {
   }
   if (SPECKLES_ON) { if (photo.complete && photo.naturalWidth) start(); else photo.addEventListener('load', start, { once: true }); }
 
-  // Constellation over the turbines: the line draws in from the left as you scroll down to the section (tied to
-  // scroll, like the hero's line) between dots that are already there; it boils
+  // Graph-paper grid: Figma's grid scaled to 25.738px cells (0.279px lines), lines starting at x -9 / y 0, extended up
+  // over the extra sky the photo has above the section. It boils like the constellation line: every 150ms each line is
+  // redrawn through points nudged a fraction of a pixel (much cheaper than a filter over the whole section); it only
+  // runs while the section is on screen and you're not scrolling.
+  const gridPath = $('.mission-grid path', section);
+  const boilGrid = (function grid() {
+    const STEP = 25.738, X0 = -9, Y0 = 0, SEG = 45, TOP = -474, BOTTOM = 862;
+    const xs = [], ys = [];
+    for (let x = X0; x <= 1470; x += STEP) xs.push(x);
+    for (let k = Math.ceil((TOP - Y0) / STEP); Y0 + k * STEP <= BOTTOM; k++) ys.push(Y0 + k * STEP);
+    return function draw(wobble) {
+      const j = () => wobble ? (Math.random() - 0.5) * 0.9 : 0, f = v => v.toFixed(1);
+      let d = '';
+      for (const x of xs) { d += `M${f(x + j())} ${TOP}`; for (let y = TOP + SEG; y < BOTTOM; y += SEG) d += `L${f(x + j())} ${y}`; d += `L${f(x + j())} ${BOTTOM}`; }
+      for (const y of ys) { d += `M0 ${f(y + j())}`; for (let x = SEG; x < 1470; x += SEG) d += `L${x} ${f(y + j())}`; d += `L1470 ${f(y + j())}`; }
+      gridPath.setAttribute('d', d);
+    };
+  })();
+  boilGrid(!reduceMotion);
+
+  // Constellation over the turbines: the line draws in from the left between dots that are already there, once enough
+  // of the section is on screen; it boils
   // (re-drawn through slightly nudged points every 150ms) while on screen and you're not scrolling.
   (function line() {
     const svg = $('.mission-line svg', section), poly = $('.m-line', svg);
@@ -776,10 +881,10 @@ $('#contact-form').addEventListener('submit', e => {
       let best = 0;
       dotXY.forEach(([x, y], i) => { if (Math.hypot(x - tx, y - ty) < Math.hypot(dotXY[best][0] - tx, dotXY[best][1] - ty)) best = i; });
       // each label sits 9px off its dot, on the side Figma put it
-      const [dx, dy] = dotXY[best];
-      t.style.left = dx + (tx >= dx ? 9 : -9) + 'px';
+      const [dx, dy] = dotXY[best], right = t.dataset.side === 'right' || tx >= dx; // data-side="right" overrides Figma
+      t.style.left = dx + (right ? 9 : -9) + 'px';
       t.style.top = dy + (ty >= dy ? 9 : -9) + 'px';
-      t.classList.toggle('flip-x', tx < dx); t.classList.toggle('flip-y', ty < dy);
+      t.classList.toggle('flip-x', !right); t.classList.toggle('flip-y', ty < dy);
       return best;
     });
     // labels read out the dot's position on the page, like the cursor's coordinates (they tick as the scene drifts)
@@ -798,9 +903,22 @@ $('#contact-form').addEventListener('submit', e => {
       poly.style.strokeDashoffset = jitterLen * (1 - l / len);
     }
     boil();
-    // progress: starts when the section's top is 40% of the way down the screen, done when it reaches the top
-    const progress = () => { const r = section.getBoundingClientRect(); return (innerHeight * 0.4 - r.top) / (innerHeight * 0.4); };
-    draw(reduceMotion ? 1 : progress());
+    // draws in at its own pace once enough of the section is on screen (once per visit)
+    const DRAW_MS = 1800, ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    draw(reduceMotion ? 1 : 0);
+    if (!reduceMotion) {
+      const trigger = new IntersectionObserver(([e]) => {
+        if (!e.isIntersecting) return;
+        trigger.disconnect();
+        const t0 = performance.now();
+        requestAnimationFrame(function step(now) {
+          const t = Math.min(1, (now - t0) / DRAW_MS);
+          draw(ease(t));
+          if (t < 1) requestAnimationFrame(step);
+        });
+      }, { threshold: 0.65 }); // 65% of the section in view (it's ~108% of the screen, so at most ~92% can show)
+      trigger.observe(section);
+    }
     label();
     if (reduceMotion) { $('.mission-boil', section).pauseAnimations(); return; }
     let lastScroll = 0, visible = false;
@@ -811,18 +929,18 @@ $('#contact-form').addEventListener('submit', e => {
     const tagBoil = $('.mission-boil', section);
     let still = null;
     addEventListener('scroll', () => {
-      lastScroll = performance.now(); draw(progress()); queueLabel();
+      lastScroll = performance.now(); queueLabel();
       if (!visible) return;
-      section.classList.add('scrolling');
+      tagBoil.pauseAnimations(); // frozen while scrolling (a frozen frame needs no redrawing)
       clearTimeout(still);
-      still = setTimeout(() => section.classList.remove('scrolling'), 180);
+      still = setTimeout(() => { if (visible) tagBoil.unpauseAnimations(); }, 180);
     }, { passive: true });
-    addEventListener('resize', () => { draw(progress()); queueLabel(); });
+    addEventListener('resize', queueLabel);
     new IntersectionObserver(([e]) => {
       visible = e.isIntersecting && e.intersectionRect.height > 0;
       if (visible) tagBoil.unpauseAnimations(); else tagBoil.pauseAnimations();
     }, { threshold: [0, 0.01] }).observe(section);
-    setInterval(() => { if (visible && performance.now() - lastScroll > 180) boil(); }, 150);
+    setInterval(() => { if (visible && performance.now() - lastScroll > 180) { boil(); boilGrid(true); } }, 150);
   })();
 
   // Parallax: the scene drifts down a little as the section passes (the photo has room above, not below)
@@ -1691,6 +1809,68 @@ const intro = (function () {
     open = panel.classList.toggle('open');
     if (open) { last = 0; gaps = []; requestAnimationFrame(tick); }
   });
+})();
+
+/* ───────── Mission grid panel (press G): try colours, strength and blend for the graph lines ─────────
+   Remembered in this browser; "Copy settings" gives text to paste to Claude to make it the default. */
+(function gridPanel() {
+  const grid = $('.mission-grid');
+  if (!grid) return;
+  const COLORS = [['#000000', 'Black (current)'], ['#3a3a5c', 'Line'], ['#1a1a32', 'Navy'], ['#014751', 'Teal'], ['#00d37f', 'Green'], ['#c6f221', 'Lime'], ['#c5b6f1', 'Lavender'], ['#fdfbef', 'Cream'], ['#ffffff', 'White']];
+  const BLENDS = ['color-burn', 'multiply', 'overlay', 'soft-light', 'screen', 'normal'];
+  const DEFAULTS = { color: '#000000', opacity: 30, blend: 'normal' }; // her pick, 2026-11-03
+  let cfg = DEFAULTS;
+  try { cfg = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('spr-grid') || '{}') }; } catch {}
+  const panel = document.createElement('aside');
+  panel.className = 'pg grid-pg';
+  panel.setAttribute('data-dev-ui', ''); panel.setAttribute('data-lenis-prevent', '');
+  panel.setAttribute('aria-label', 'Mission grid');
+  panel.innerHTML = `
+    <div class="pg-head"><p class="mono semi c-lime">Mission grid</p><button class="mono-s pg-x" data-act="close">Close ✕</button></div>
+    <div class="pg-row"><p class="mono-s c-muted">Line colour</p>
+      <div class="pg-swatches">${COLORS.map(([c, n]) => `<button data-c="${c}" style="--sw:${c}" title="${n}"></button>`).join('')}<label class="pg-custom" title="Custom colour"><input type="color" data-custom></label></div>
+    </div>
+    <div class="pg-row pg-sliders"><label class="mono-s">Strength <span class="c-white" data-op-v></span><input type="range" min="5" max="100" step="5" data-op></label></div>
+    <div class="pg-row"><p class="mono-s c-muted">Blend mode</p><div class="pg-chips">${BLENDS.map(b => `<button data-b="${b}">${b}</button>`).join('')}</div></div>
+    <div class="pg-foot"><button class="mono-s pg-x" data-act="reset">Reset</button><button class="mono-s pg-x" data-act="copy">Copy settings</button></div>`;
+  document.body.append(panel);
+  function apply() {
+    grid.style.setProperty('--grid-color', cfg.color);
+    grid.style.setProperty('--grid-opacity', cfg.opacity / 100);
+    grid.style.setProperty('--grid-blend', cfg.blend);
+    let matched = false;
+    $$('[data-c]', panel).forEach(b => { const on = b.dataset.c === cfg.color; b.classList.toggle('on', on); matched ||= on; });
+    $('.pg-custom', panel).classList.toggle('on', !matched);
+    $('[data-custom]', panel).value = cfg.color;
+    $('[data-op]', panel).value = cfg.opacity; $('[data-op-v]', panel).textContent = cfg.opacity + '%';
+    $$('[data-b]', panel).forEach(b => b.classList.toggle('on', b.dataset.b === cfg.blend));
+    try { localStorage.setItem('spr-grid', JSON.stringify(cfg)); } catch {}
+  }
+  panel.addEventListener('click', e => {
+    const t = e.target;
+    if (t.dataset.c) cfg = { ...cfg, color: t.dataset.c };
+    else if (t.dataset.b) cfg = { ...cfg, blend: t.dataset.b };
+    else if (t.dataset.act === 'close') return panel.classList.remove('open');
+    else if (t.dataset.act === 'reset') cfg = DEFAULTS;
+    else if (t.dataset.act === 'copy') {
+      const name = (COLORS.find(([c]) => c === cfg.color) || [, 'custom'])[1].replace(' (current)', '');
+      navigator.clipboard?.writeText(`Mission grid: colour ${name} ${cfg.color}, strength ${cfg.opacity}%, blend ${cfg.blend}`);
+      t.textContent = 'Copied ✓'; setTimeout(() => { t.textContent = 'Copy settings'; }, 1200);
+      return;
+    } else return;
+    apply();
+  });
+  panel.addEventListener('input', e => {
+    if (e.target.matches('[data-custom]')) cfg = { ...cfg, color: e.target.value };
+    else if (e.target.matches('[data-op]')) cfg = { ...cfg, opacity: +e.target.value };
+    else return;
+    apply();
+  });
+  addEventListener('keydown', e => {
+    if (e.key.toLowerCase() !== 'g' || e.metaKey || e.ctrlKey || e.target.closest?.('input, textarea')) return;
+    panel.classList.toggle('open');
+  });
+  apply();
 })();
 
 /* ───────── Shift + H hides all dev UI (dev buttons and panels), remembered in this browser ─────────
