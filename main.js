@@ -79,7 +79,7 @@ const NAV_H = () => { const nav = $('#nav'); return nav.offsetHeight + parseFloa
   let under = null; // element currently under the cursor
   function updateUnder(t) {
     under = t;
-    hovering = !!t?.closest('a, button, .cw-deco, .star-layer .star, .chip, .legend-item'); // not the crossword squares (her call)
+    hovering = !!t?.closest('a, button, .cw-deco, .star-layer .star, .insta-star, .reel-card:not(.spot), .chip, .legend-item'); // not the crossword squares (her call)
     el.classList.toggle('on-green', !!t?.closest('.footer, .founders, .bg-green, .btn-green'));
     dark = isDark(t);
     sqCanvas.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
@@ -287,7 +287,8 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     { w: 'EDUCATE', c: 10, r: 9 },
     { w: 'RESEARCH', c: 14, r: 5, down: true },
   ];
-  // decorative cells (the word cells get their lime/green as their letters drop in)
+  // decorative cells (hidden until the intro reveals them, along with the letters; the word cells get their lime/green
+  // as their letters drop in)
   const fills = {
     '0,1': 'cream', '10,1': 'cream', '15,1': 'cream', '2,1': 'lavender', '1,2': 'cream', '6,2': 'cream', '9,2': 'lavender',
     '11,2': 'cream', '14,2': 'cream', '15,2': 'lavender', '12,3': 'cream', '17,3': 'cream', '18,3': 'lavender',
@@ -303,10 +304,14 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
   const DECOR = ['cream', 'cream', 'cream', 'cream', 'lavender', 'lavender', 'teal', 'teal', 'green', 'green'], DENSITY = 0.10;
   const wordKeys = new Set(words.flatMap(w => [...w.w].map((_, i) => w.down ? `${w.c},${w.r + i}` : `${w.c + i},${w.r}`)));
   const hash = (c, r) => { const v = Math.sin(c * 127.1 + r * 311.7) * 43758.5453; return v - Math.floor(v); };
+  // No green square right beside a letter square (her call: it reads as part of the word); those become lavender or teal
+  const besideWord = (c, r) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dc, dr]) => wordKeys.has(`${c + dc},${r + dr}`));
+  const notGreen = (c, r, colour) => colour === 'green' && besideWord(c, r) ? (hash(c + 7, r + 3) < 0.5 ? 'lavender' : 'teal') : colour;
   function addRow(r) {
     for (let c = 0; c < COLS; c++) {
       const key = `${c},${r}`, h = hash(c, r);
       if (!fills[key] && !wordKeys.has(key) && h < DENSITY) fills[key] = DECOR[Math.floor(h / DENSITY * DECOR.length)];
+      if (fills[key]) fills[key] = notGreen(c, r, fills[key]);
     }
     for (let c = 0; c < COLS; c++) {
       const el = document.createElement('div');
@@ -314,11 +319,12 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
       el.style.left = x(c) + 'px';
       el.style.top = y(r) + 'px';
       el.dataset.key = `${c},${r}`;
-      if (fills[`${c},${r}`]) el.style.background = `var(--${fills[`${c},${r}`]})`;
+      if (fills[`${c},${r}`]) { el.style.background = `var(--${fills[`${c},${r}`]})`; if (!revealed) el.classList.add('pending'); }
       grid.appendChild(el);
       cells[`${c},${r}`] = { el, words: [] };
     }
   }
+  let revealed = false; // has the intro started? (cells made after that just show)
   for (let r = 0; r < ROWS; r++) addRow(r);
   // Extra empty rows above and below the words: whole rows only, from a row below the nav bar down to just above the
   // section's bottom edge (worked out from the real sizes, so it fits any screen; re-fitted on resize)
@@ -345,8 +351,9 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     for (const k of keys.filter(k => !fills[k] && !wordKeys.has(k)).sort((a, b) => hash(...a.split(',').map(Number)) - hash(...b.split(',').map(Number)))) {
       if (have >= want) break;
       const [c, r2] = k.split(',').map(Number);
-      fills[k] = ['lavender', 'teal', 'green'][Math.floor(hash(c + 31, r2 + 17) * 3)]; // visible colours (cream barely shows)
+      fills[k] = notGreen(c, r2, ['lavender', 'teal', 'green'][Math.floor(hash(c + 31, r2 + 17) * 3)]); // visible colours (cream barely shows)
       cells[k].el.style.background = `var(--${fills[k]})`;
+      if (!revealed) cells[k].el.classList.add('pending');
       have++;
     }
   }
@@ -363,31 +370,76 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     });
   });
 
-  // Hover any square → it lights up in a random design-system colour (never the one it already shows), and goes
-  // straight back off when you move away. One handler on the grid covers every square, extra rows included.
-  const HOVER = ['green', 'lime', 'lavender', 'teal', 'navy'], DARK = ['teal', 'navy'];
+  // Hover trail: the square under the cursor is forest (the darkest), and the squares it just left step through
+  // emerald, lilac and lime before going back to normal, so a short trail follows the cursor. Squares a fast move
+  // skips over are filled in, so the trail doesn't break up. One handler on the grid covers every square.
+  const TRAIL = ['green', 'lavender', 'lime'], TRAIL_MS = 110; // after leaving: each colour holds this long
+  const trail = new Map(); // square → when the cursor left it
+  let hovered = null, trailRaf = 0;
+  const cellAt = (c, r) => cells[`${c},${r}`]?.el;
+  function fade(now) {
+    for (const [el, left] of trail) {
+      const step = Math.floor((now - left) / TRAIL_MS);
+      if (step >= TRAIL.length) { trail.delete(el); el.removeAttribute('data-trail'); }
+      else el.dataset.trail = TRAIL[step];
+    }
+    trailRaf = trail.size ? requestAnimationFrame(fade) : 0;
+  }
+  function leave(el, at = performance.now()) {
+    trail.set(el, at);
+    el.dataset.trail = TRAIL[0];
+    if (!trailRaf) trailRaf = requestAnimationFrame(fade);
+  }
   grid.addEventListener('pointerover', e => {
     const el = e.target.closest('.cw-cell');
-    if (!el || el.contains(e.relatedTarget)) return;
-    const now = (el.classList.contains('shown') ? (el.classList.contains('wd') ? 'green' : el.classList.contains('wa') ? 'lime' : '') : '') || fills[el.dataset.key] || '';
-    const pick = HOVER.filter(c => c !== now);
-    const c = pick[Math.floor(Math.random() * pick.length)];
-    el.style.setProperty('--lit', `var(--${c})`);
-    el.classList.add('lit');
-    el.classList.toggle('lit-dark', DARK.includes(c));
+    if (!el || el === hovered) return;
+    const now = performance.now();
+    if (hovered) {
+      // squares between the last one and this one (a fast move jumps over them): oldest nearest the last square
+      const [c0, r0] = hovered.dataset.key.split(',').map(Number), [c1, r1] = el.dataset.key.split(',').map(Number);
+      const n = Math.max(Math.abs(c1 - c0), Math.abs(r1 - r0));
+      for (let i = 1; i < n; i++) {
+        const mid = cellAt(Math.round(c0 + (c1 - c0) * i / n), Math.round(r0 + (r1 - r0) * i / n));
+        if (mid && mid !== el) leave(mid, now - (n - i) * 12);
+      }
+      leave(hovered, now - n * 12);
+    }
+    trail.delete(el);
+    el.dataset.trail = 'teal';
+    hovered = el;
   });
-  grid.addEventListener('pointerout', e => {
-    const el = e.target.closest('.cw-cell');
-    if (el && !el.contains(e.relatedTarget)) el.classList.remove('lit', 'lit-dark');
-  });
+  grid.addEventListener('pointerleave', () => { if (hovered) leave(hovered); hovered = null; });
 
-  // Letters drop in word by word when the section scrolls into view
+  // Intro: when the section scrolls into view, a band of colour sweeps diagonally from the top-left corner to the
+  // bottom-right: each square flashes lime, then emerald, then forest, then lilac, and is left in its real state
+  // (letters drop in with their lime/green, the coloured squares stay coloured, the rest go plain)
+  const SWEEP = ['lime', 'green', 'teal', 'lavender']; // teal = the site's forest green
+  const DIAG_MS = 45, BAND_MS = 85; // gap between one diagonal and the next; how long each colour holds
   const io = new IntersectionObserver(entries => {
     if (!entries[0].isIntersecting) return;
     io.disconnect();
-    words.forEach((word, wi) => word.cells.forEach((cell, i) => {
-      setTimeout(() => cell.el.classList.add('shown'), reduceMotion ? 0 : wi * 320 + i * 55);
-    }));
+    revealed = true;
+    const show = el => { el.removeAttribute('data-sweep'); el.classList.contains('has-letter') ? el.classList.add('shown') : el.classList.remove('pending'); };
+    const all = $$('.cw-cell', grid);
+    if (reduceMotion) return all.forEach(show);
+    const at = all.map(el => el.dataset.key.split(',').map(Number));
+    const top = Math.min(...at.map(([, r]) => r));
+    const todo = all.map((el, i) => ({ el, start: (at[i][0] + at[i][1] - top) * DIAG_MS, phase: -1 }));
+    const t0 = performance.now();
+    (function tick(now) {
+      let left = 0;
+      for (const t of todo) {
+        if (t.phase >= SWEEP.length) continue;
+        const phase = Math.floor((now - t0 - t.start) / BAND_MS);
+        if (phase !== t.phase && phase >= 0) {
+          t.phase = phase;
+          if (phase < SWEEP.length) t.el.dataset.sweep = SWEEP[phase]; else show(t.el);
+        }
+        if (t.phase < SWEEP.length) left++;
+      }
+      if (left) requestAnimationFrame(tick);
+      else $$('.cw-cell.pending', grid).forEach(show); // rows added meanwhile
+    })(t0);
   }, { threshold: 0.25 });
   io.observe(stage);
 
@@ -403,6 +455,27 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     still = setTimeout(() => { scrolling = false; syncBoil(); }, 180);
   }, { passive: true });
   syncBoil();
+
+  // Shimmer (tried 2026-11-05, she turned it off: "doesn't look good"): once the intro has played, the plain squares keep swapping. Every so often a coloured
+  // square switches off, and separately a plain one switches on in a random colour, so the amount of colour stays
+  // about the same. Only while the crossword is on screen.
+  const SHIMMER = false, SHIMMER_MS = [450, 1000]; // random wait between swaps (each of on / off), in ms
+  const SHIMMER_COLOURS = ['cream', 'lavender', 'lavender', 'teal', 'green', 'green'];
+  const plain = () => $$('.cw-cell:not(.has-letter)', grid);
+  const some = a => a[Math.floor(Math.random() * a.length)];
+  function shimmer(on) {
+    setTimeout(() => shimmer(on), SHIMMER_MS[0] + Math.random() * (SHIMMER_MS[1] - SHIMMER_MS[0]));
+    if (!revealed || !onScreen || document.hidden) return;
+    const el = some(plain().filter(el => !!fills[el.dataset.key] !== on && !el.classList.contains('pending')));
+    if (!el) return;
+    const key = el.dataset.key;
+    if (on) {
+      const [c, r] = key.split(',').map(Number);
+      fills[key] = notGreen(c, r, some(SHIMMER_COLOURS));
+      el.style.background = `var(--${fills[key]})`;
+    } else { delete fills[key]; el.style.background = ''; }
+  }
+  if (SHIMMER && !reduceMotion) { shimmer(true); setTimeout(() => shimmer(false), SHIMMER_MS[0] / 2); }
 
   // Stickers (draggable)
   const decos = [
@@ -442,10 +515,12 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
 (function reel() {
   const stage = $('#reel-stage');
   const reelEl = $('#reel');
-  const CENTER = { x: 735.6, y: 1290.6 };
-  const R = 775;                      // radius of the reel's windows
-  const STEP = 360 / 14;              // the reel has 14 windows
-  const FIRST = -41.8;                // window angle of card 01 in the design
+  // The 14 windows, measured from wheel.png (hand-drawn, so not perfectly even): angle clockwise from straight up
+  // and distance from the centre, in the design's resting position, starting with card 01's window. Each card sits
+  // under its window, turned to match, and the wheel on top frames it (rounded corners come from the window).
+  const WINDOWS = [[-39.76, 769.5], [-13.96, 772], [11.64, 774], [37.24, 776], [62.49, 775.5], [87.94, 775.5],
+    [113.34, 773.5], [138.99, 771], [164.64, 770.5], [-169.46, 769.5], [-143.41, 768.5], [-117.46, 767.5],
+    [-91.66, 769], [-65.71, 769.5]];
 
   const impacts = {
     1: { title: 'Community-<br>Building', bg: '', imgs: [
@@ -455,81 +530,73 @@ const scale = () => parseFloat(getComputedStyle(document.documentElement).getPro
     3: { title: 'Science Policy<br>Education', bg: 'var(--lavender)', imgs: ['<img src="assets/impact3.png" alt="" style="left:.2%; top:-17.35%; width:100%; height:177.98%">'] },
     4: { title: 'Research Skills<br>Development', bg: 'var(--teal)', imgs: ['<img src="assets/impact4.png" alt="" style="left:-.1%; top:-37.32%; width:100%; height:160.48%">'] },
   };
-  // 14 windows: the 4 impacts three times, with an SPR* card between runs
-  const seq = [1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4];
-
-  seq.forEach((n, j) => {
+  // Every window has a card: 1, 2, 3, 4 over and over. 14 windows don't divide by 4, so the order is worked out from
+  // the spotlight outwards and redone on each click; the only cards that change are at the bottom of the wheel, out of
+  // sight (the section only shows about ±70° of it).
+  const N = WINDOWS.length;
+  const cards = WINDOWS.map(([a, r], j) => {
     const card = document.createElement('div');
-    const a = FIRST + STEP * j;
-    card.style.transform = `rotate(${a}deg) translateY(-${R}px) translate(-50%, -50%)`;
-    if (n === 0) {
-      card.className = 'reel-card spr';
-      card.innerHTML = '<p class="mono semi">SPR</p><p class="big">*</p>';
-    } else {
-      const imp = impacts[n];
-      card.className = 'reel-card';
-      card.innerHTML = `<div class="bgs" style="background:${imp.bg || 'transparent'}">${imp.imgs.join('')}<div class="grad"></div></div>
-        <p class="mono semi">0${n}</p><p class="h3">${imp.title}</p>`;
-      $$('img', card).forEach(img => img.draggable = false);
-    }
+    card.className = 'reel-card';
+    card.setAttribute('role', 'button');
+    card.tabIndex = 0;
+    card.style.transform = `rotate(${a}deg) translateY(-${r}px) translate(-50%, -50%)`;
+    card.addEventListener('click', () => spotlight(j));
+    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); spotlight(j); } });
     reelEl.appendChild(card);
+    return card;
   });
-
-  // Motion: constant slow spin; slows on hover; drag to fling it
-  const BASE = reduceMotion ? 0 : 3;  // degrees per second (~2 min per turn)
-  const HOVER = reduceMotion ? 0 : 0.8;
-  let angle = 0, speed = BASE, hovering = false, drag = null, last = performance.now();
-
-  const centerOnScreen = () => {
-    const r = stage.getBoundingClientRect(), s = scale();
-    return { x: r.left + CENTER.x * s, y: r.top + CENTER.y * s };
-  };
-  const pointerAngle = e => { const c = centerOnScreen(); return Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180 / Math.PI; };
-
-  stage.addEventListener('pointerenter', () => hovering = true);
-  stage.addEventListener('pointerleave', () => hovering = false);
-  stage.addEventListener('pointerdown', e => {
-    stage.setPointerCapture(e.pointerId);
-    stage.classList.add('dragging');
-    drag = { last: pointerAngle(e), t: performance.now(), v: 0 };
-  });
-  stage.addEventListener('pointermove', e => {
-    if (!drag) return;
-    const a = pointerAngle(e), now = performance.now();
-    let d = a - drag.last;
-    if (d > 180) d -= 360; if (d < -180) d += 360;
-    angle += d;
-    drag.v = d / Math.max(1, now - drag.t) * 1000;
-    drag.last = a; drag.t = now;
-  });
-  const endDrag = () => {
-    if (!drag) return;
-    speed = Math.max(-240, Math.min(240, drag.v));
-    drag = null;
-    stage.classList.remove('dragging');
-  };
-  stage.addEventListener('pointerup', endDrag);
-  stage.addEventListener('pointercancel', endDrag);
-
-  // Only turns while the section is on screen: a transform written every frame keeps the browser repainting the
-  // whole time the page is open, which made long sessions stutter (it picks up where it left off)
-  let onScreen = false, running = false;
-  function tick(now) {
-    if (!onScreen) { running = false; return; }
-    const dt = Math.min(0.05, (now - last) / 1000);
-    last = now;
-    if (!drag) {
-      const target = hovering ? HOVER : BASE;
-      speed += (target - speed) * (1 - Math.exp(-dt * 1.6));
-      angle += speed * dt;
-    }
-    reelEl.style.transform = `rotate(${angle}deg)`;
-    requestAnimationFrame(tick);
+  function fill(card, n) {
+    if (card.dataset.n === String(n)) return;
+    const imp = impacts[n];
+    card.dataset.n = n;
+    card.setAttribute('aria-label', imp.title.replace('<br>', ' ').replace('- ', '-'));
+    card.innerHTML = `<div class="bgs" style="background:${imp.bg || 'transparent'}">${imp.imgs.join('')}<div class="grad"></div></div>
+      <p class="mono semi">0${n}</p><p class="h3">${imp.title}</p>`;
+    $$('img', card).forEach(img => img.draggable = false);
   }
-  new IntersectionObserver(([e]) => {
-    onScreen = e.isIntersecting && e.intersectionRect.height > 0; // touching the screen edge doesn't count
-    if (onScreen && !running) { running = true; last = performance.now(); requestAnimationFrame(tick); }
-  }, { threshold: [0, 0.01] }).observe(stage);
+
+  // The spotlight is where card 02 sits in the design (its window, just left of the top). Clicking a card turns the
+  // wheel the short way round until that card is there; the section background slides over to its photo.
+  const SPOT = WINDOWS[1][0];
+  let spot = 1, spotN = 2, rot = 0;
+  const label = j => { const o = ((j - spot) % N + N + 7) % N - 7; return ((spotN - 1 + o) % 4 + 4) % 4 + 1; }; // o: -7…6 windows from the spotlight
+  const relabel = () => cards.forEach((c, j) => { fill(c, label(j)); c.classList.toggle('spot', j === spot); });
+
+  // Section background: one layer per photo (colour + photo + the cards' lavender→navy wash)
+  const bgBox = $('#impacts-bg');
+  const BG_PHOTO = { 1: 'impact1b.png', 2: 'impact2.png', 3: 'impact3.png', 4: 'impact4.png' };
+  let bgNow = null;
+  function setBg(n, dir) {
+    const layer = document.createElement('div');
+    layer.className = 'impacts-bg-layer';
+    layer.style.background = impacts[n].bg || 'transparent';
+    layer.innerHTML = `<img src="assets/${BG_PHOTO[n]}" alt="" draggable="false"><div class="grad"></div>`;
+    [...bgBox.children].forEach(el => el !== bgNow && el.remove()); // a quick second click: drop any half-gone layer
+    if (!dir || !bgNow || reduceMotion) { bgBox.replaceChildren(layer); bgNow = layer; return; }
+    layer.style.translate = `${dir * 100}% 0`;
+    bgBox.append(layer);
+    layer.getBoundingClientRect(); // start from off to the side
+    const old = bgNow;
+    old.style.translate = `${-dir * 100}% 0`;
+    layer.style.translate = '0 0';
+    old.addEventListener('transitionend', () => old.remove(), { once: true });
+    bgNow = layer;
+  }
+
+  function spotlight(j) {
+    if (j === spot) return;
+    const n = label(j);
+    let d = (SPOT - (WINDOWS[j][0] + rot)) % 360; // short way round
+    if (d > 180) d -= 360; else if (d < -180) d += 360;
+    rot += d;
+    spot = j; spotN = n;
+    relabel();
+    reelEl.style.transform = `rotate(${rot}deg)`;
+    setBg(n, d < 0 ? 1 : -1); // wheel turns left → the new photo comes in from the right
+  }
+
+  relabel();
+  setBg(spotN);
 })();
 
 /* ───────── "What we do": sticker clock — the hour hand follows the cursor and points at what you hover ───────── */
@@ -1663,6 +1730,13 @@ const intro = (function () {
     layer.append(star);
   });
   addEventListener('hashchange', () => layer.replaceChildren());
+  // Hovering a star (a placed one or a crossword sticker) also tilts it, by a new random angle each time
+  addEventListener('pointerover', e => {
+    const star = e.target.closest?.('.star-layer .star, .cw-deco, .insta-star');
+    if (!star || star.contains(e.relatedTarget)) return;
+    const deg = (8 + Math.random() * 22) * (Math.random() < 0.5 ? -1 : 1); // 8–30°, either way
+    star.style.setProperty('--tilt', deg.toFixed(1) + 'deg');
+  });
 
   // Drag placed stars around (the one you grab comes to the front; clicking a star never spawns another)
   let drag = null, topZ = 1;
@@ -1813,6 +1887,100 @@ const intro = (function () {
 
 /* ───────── Mission grid panel (press G): try colours, strength and blend for the graph lines ─────────
    Remembered in this browser; "Copy settings" gives text to paste to Claude to make it the default. */
+/* ───────── Mission: code feed (Figma Code Layer 184:701, in the grid lines' colour and blend) ───────── */
+// Lines of made-up code type in right at the top of the dark hills (left) and push the rest up, filling the sky, forever.
+// One colour (the grid's), and the box follows the grid panel (G): colour, strength and blend.
+(function codeFeed() {
+  const cv = $('.mission-code');
+  if (!cv) return;
+  const BOX = { w: 520, h: 554 }; // stage px (matches the CSS)
+  const SETTINGS = { fontSize: 11, lineHeight: 1.55, typeSpeed: 240, pause: 70, scrollTime: 110, font: '"Haffer XH Mono", "DM Mono", Menlo, monospace' };
+  const ctx = cv.getContext('2d');
+  const pick = a => a[Math.floor(Math.random() * a.length)], chance = p => Math.random() < p;
+  const NAMES = ['sample', 'signal', 'trial', 'dataset', 'grant', 'policy', 'cohort', 'result', 'peer', 'vote', 'atlas',
+    'genome', 'climate', 'neuron', 'model', 'review', 'record', 'flux', 'spectrum', 'field', 'public', 'archive', 'index'];
+  const FNS = ['measure', 'publish', 'replicate', 'normalize', 'cite', 'observe', 'fund', 'advocate', 'filter', 'merge',
+    'train', 'predict', 'share', 'compare', 'verify', 'annotate', 'sequence', 'simulate'];
+  const COMMENTS = ['TODO: open access', 'keep it reproducible', 'peer review pending', 'science is a public service',
+    'check the error bars', 'every last drop of data', 'cite your sources', 'draft — do not merge'];
+  const camel = (a, b) => a + b[0].toUpperCase() + b.slice(1);
+  const num = () => String(chance(0.5) ? Math.floor(Math.random() * 999) : (Math.random() * 10).toFixed(2));
+  const str = () => '"' + pick(NAMES) + (chance(0.5) ? '_' + pick(NAMES) : '') + '"';
+  const val = () => chance(0.35) ? num() : chance(0.4) ? str() : pick(NAMES);
+  let depth = 0;
+  function nextLine() { // → [text, indent]
+    const r = Math.random(), d = depth;
+    if (depth > 0 && (r < 0.18 || depth > 5)) return ['}', --depth];
+    if (r < 0.26 && depth < 5) {
+      depth++;
+      return [pick([
+        () => `function ${camel(pick(FNS), pick(NAMES))}(${pick(NAMES)}, ${pick(NAMES)}) {`,
+        () => `for (const ${pick(NAMES)} of ${pick(NAMES)}s) {`,
+        () => `if (${pick(NAMES)}.${pick(NAMES)} > ${num()}) {`,
+        () => `while (!${pick(NAMES)}.done) {`,
+      ])(), d];
+    }
+    if (r < 0.34) return ['// ' + pick(COMMENTS), d];
+    if (r < 0.40) return ['', d];
+    return [pick([
+      () => `const ${camel(pick(NAMES), pick(NAMES))} = ${pick(FNS)}(${val()});`,
+      () => `${pick(NAMES)}.${pick(FNS)}(${[val(), ...(chance(0.5) ? [val()] : [])].join(', ')});`,
+      () => `let ${pick(NAMES)} = [${num()}, ${num()}, ${num()}];`,
+      () => `return ${pick(NAMES)}.${pick(FNS)}();`,
+      () => `${pick(NAMES)}.push({ ${pick(NAMES)}: ${val()}, ${pick(NAMES)}: ${val()} });`,
+      () => `await ${pick(FNS)}(${str()});`,
+    ])(), d];
+  }
+
+  let k = 0, lh = 0, cw = 0, colour = '#fdfbef';
+  function resize() {
+    k = (cv.getBoundingClientRect().width / BOX.w) * (devicePixelRatio || 1); // stage scale × screen density, for crisp text
+    if (!k) return;
+    cv.width = Math.round(BOX.w * k); cv.height = Math.round(BOX.h * k);
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    ctx.font = `${SETTINGS.fontSize}px ${SETTINGS.font}`;
+    lh = SETTINGS.fontSize * SETTINGS.lineHeight;
+    cw = ctx.measureText('M').width;
+  }
+  new ResizeObserver(resize).observe(cv);
+  const readColour = () => { colour = getComputedStyle(cv).getPropertyValue('--grid-color').trim() || '#fdfbef'; };
+
+  const lines = [];
+  let typing, typed = 0, phase = 'type', phaseStart = 0, lastT = 0, onScreen = false, raf = 0;
+  const newLine = () => { const [text, indent] = nextLine(); typing = { text, indent }; typed = 0; readColour(); };
+  newLine(); // starts empty: it fills the sky line by line while the mission is on screen
+
+  function frame(t) {
+    raf = onScreen ? requestAnimationFrame(frame) : 0;
+    if (!k) return resize();
+    const dt = Math.min(100, t - (lastT || t)); lastT = t;
+    if (phase === 'type') {
+      typed += SETTINGS.typeSpeed * dt / 1000;
+      if (typed >= typing.text.length) { typed = typing.text.length; phase = 'pause'; phaseStart = t; }
+    } else if (phase === 'pause' && t - phaseStart > SETTINGS.pause) { phase = 'scroll'; phaseStart = t; }
+    else if (phase === 'scroll' && t - phaseStart > SETTINGS.scrollTime) {
+      lines.push(typing);
+      if (lines.length > 40) lines.splice(0, lines.length - 40);
+      newLine(); phase = 'type';
+    }
+    const u = phase === 'scroll' ? Math.min(1, (t - phaseStart) / SETTINGS.scrollTime) : 0;
+    const base = BOX.h - lh * 0.8 - (1 - Math.pow(1 - u, 3)) * lh;
+    ctx.clearRect(0, 0, BOX.w, BOX.h);
+    ctx.font = `${SETTINGS.fontSize}px ${SETTINGS.font}`; ctx.textBaseline = 'middle'; ctx.fillStyle = colour;
+    const x = () => 0; // flush left (her call): no indenting for nested lines
+    for (let i = lines.length - 1, y = base - lh; i >= 0 && y > -lh; i--, y -= lh) ctx.fillText(lines[i].text, x(lines[i]), y);
+    const shown = typing.text.slice(0, Math.floor(typed));
+    ctx.fillText(shown, x(typing), base);
+    if (phase !== 'scroll' && Math.floor(t / 400) % 2 === 0) ctx.fillRect(x(typing) + shown.length * cw + 1, base - lh * 0.36, cw * 0.6, lh * 0.72); // blinking cursor
+  }
+  // only runs while the mission is on screen
+  new IntersectionObserver(([e]) => {
+    onScreen = e.isIntersecting && e.intersectionRect.height > 0;
+    if (onScreen && !raf && !reduceMotion) { lastT = 0; raf = requestAnimationFrame(frame); }
+    if (reduceMotion && onScreen) frame(performance.now()); // one still frame
+  }, { threshold: [0, 0.01] }).observe(cv.closest('.mission'));
+})();
+
 (function gridPanel() {
   const grid = $('.mission-grid');
   if (!grid) return;
@@ -1835,9 +2003,9 @@ const intro = (function () {
     <div class="pg-foot"><button class="mono-s pg-x" data-act="reset">Reset</button><button class="mono-s pg-x" data-act="copy">Copy settings</button></div>`;
   document.body.append(panel);
   function apply() {
-    grid.style.setProperty('--grid-color', cfg.color);
-    grid.style.setProperty('--grid-opacity', cfg.opacity / 100);
-    grid.style.setProperty('--grid-blend', cfg.blend);
+    grid.parentElement.style.setProperty('--grid-color', cfg.color);
+    grid.parentElement.style.setProperty('--grid-opacity', cfg.opacity / 100);
+    grid.parentElement.style.setProperty('--grid-blend', cfg.blend); // on the scene, so the code feed picks them up too
     let matched = false;
     $$('[data-c]', panel).forEach(b => { const on = b.dataset.c === cfg.color; b.classList.toggle('on', on); matched ||= on; });
     $('.pg-custom', panel).classList.toggle('on', !matched);
@@ -1871,6 +2039,55 @@ const intro = (function () {
     panel.classList.toggle('open');
   });
   apply();
+})();
+
+/* ───────── Instagram: the 4 newest @spr.umd posts, via a Behold feed ─────────
+   If the feed can't load, the placeholder tiles (linking to the profile) stay. */
+(function instaFeed() {
+  const FEED = 'https://feeds.behold.so/jlYdOuoS0NSnuthjty5C';
+  const tiles = [...document.querySelectorAll('.posts .post')];
+  if (!tiles.length) return;
+  fetch(FEED).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(({ posts = [] }) => {
+    posts.filter(p => p.visibility !== 'hidden').slice(0, tiles.length).forEach((p, i) => {
+      const src = p.sizes?.medium?.mediaUrl || p.thumbnailUrl || p.mediaUrl;
+      if (!src) return;
+      const img = new Image();
+      img.alt = p.prunedCaption || p.caption || 'Instagram post from @spr.umd';
+      img.decoding = 'async';
+      img.onload = () => {
+        const t = tiles[i];
+        t.href = p.permalink;
+        t.textContent = '';
+        t.append(img);
+        t.classList.add('has-img');
+      };
+      img.src = src;
+    });
+  }).catch(() => {});
+})();
+
+/* ───────── Instagram stars: draggable, like the crossword stickers (dragging moves their --x / --y) ───────── */
+(function instaStars() {
+  let topZ = 10;
+  $$('.insta-star').forEach(el => {
+    let start = null;
+    el.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault(); // no native image drag
+      el.setPointerCapture(e.pointerId);
+      el.style.zIndex = ++topZ;
+      el.classList.add('dragging');
+      start = { x: e.clientX, y: e.clientY, px: parseFloat(el.style.getPropertyValue('--x')), py: parseFloat(el.style.getPropertyValue('--y')) };
+    });
+    el.addEventListener('pointermove', e => {
+      if (!start) return;
+      el.style.setProperty('--x', start.px + e.clientX - start.x + 'px');
+      el.style.setProperty('--y', start.py + e.clientY - start.y + 'px');
+    });
+    const drop = () => { start = null; el.classList.remove('dragging'); };
+    el.addEventListener('pointerup', drop);
+    el.addEventListener('pointercancel', drop);
+  });
 })();
 
 /* ───────── Shift + H hides all dev UI (dev buttons and panels), remembered in this browser ─────────

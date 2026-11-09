@@ -4,17 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Scientists for Public Research</title>
+  <link rel="icon" href="assets/favicon.ico?v=1" sizes="any">
+  <link rel="icon" type="image/png" href="assets/favicon-192.png?v=1">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@700&family=DM+Mono:wght@400;500&family=Faculty+Glyphic&family=Hanken+Grotesk:wght@400&family=Inter:wght@400&family=Unbounded:wght@700&display=swap" rel="stylesheet">
   <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.13/dist/lenis.css">
-  <link rel="stylesheet" href="style.css?v=84">
+  <link rel="stylesheet" href="style.css?v=107">
 </head>
 <body>
 
 <!-- ═════════ NAV ═════════ -->
 <header class="nav" id="nav">
+    <!-- Boil for the nav underline (its own filter, so it keeps going when the hero's boil is paused) -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <filter id="boil-nav" x="-5%" y="-60%" width="110%" height="220%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="1">
+          <animate attributeName="seed" values="1;2;3" dur="0.45s" calcMode="discrete" repeatCount="indefinite"/>
+        </feTurbulence>
+        <feDisplacementMap in="SourceGraphic" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+    </svg>
   <div class="nav-inner">
     <a class="brand" href="#/">
       <img src="assets/logo.png" alt="SPR logo">
@@ -96,7 +108,8 @@
       </svg>
     </div>
     <div class="home-intro-copy">
-      <p class="h2">A student club for scientists who care about policy.</p>
+      <p class="mono c-green eyebrow">[01] who are we?</p>
+      <p class="h2">A student club for scientists who care about policy</p>
       <a class="mono semi link-arrow" href="#/about">About SPR →</a>
     </div>
   </div>
@@ -106,12 +119,14 @@
     <p class="body-l">Scientists for Public Research is an undergraduate organization at the University of Maryland. We bring students together to discuss science policy, organize grassroots advocacy, and learn to communicate research to the public.</p>
   </div>
 
-  <!-- 4 Impacts: rotating View-Master reel -->
+  <!-- 4 Impacts: View-Master reel; click a card to turn it into the spotlight (Figma "4 Impacts" 100:729) -->
   <div class="impacts">
     <div class="stage-wrap" style="--h: 725px">
       <div class="stage" id="reel-stage">
+        <div class="impacts-bg" id="impacts-bg"></div> <!-- the spotlit card's photo, added by main.js -->
         <div class="impacts-head">
-          <p class="h2 c-navy" style="font-size: 64px; letter-spacing: -2.56px">Four ways we show up.</p>
+          <p class="mono c-green">[02] Our impact</p>
+          <p class="h2 c-white" style="font-size: 64px; letter-spacing: -2.56px">Four ways we show up</p>
         </div>
         <div class="reel" id="reel">
           <div class="reel-wheel"><img src="assets/wheel.png" alt="" draggable="false"></div>
@@ -130,6 +145,7 @@
           <!-- Graph-paper grid over the photo, colour-burned in (Figma "Grid pattern (overlay)" 160:3944); lines drawn by main.js -->
           <svg class="mission-grid" viewBox="0 -474 1470 1336" width="1470" height="1336" aria-hidden="true"><path/></svg>
           <canvas class="mission-speckles" aria-hidden="true"></canvas>
+          <canvas class="mission-code" aria-hidden="true"></canvas>
           <!-- Boil for the coordinate tags: same wobble as the hero words, gentler for 11px text (main.js pauses it off screen) -->
           <svg class="mission-boil" width="0" height="0" style="position:absolute" aria-hidden="true">
             <filter id="boil-tags" x="-10%" y="-25%" width="120%" height="150%">
@@ -152,7 +168,10 @@
         </div>
       </div>
     </div>
-    <p class="h2 mission-quote">We believe good science is a public service—and should be for the betterment of all.</p>
+    <div class="mission-quote">
+      <p class="mono c-lavender">[03] Our mission</p>
+      <p class="h2">We believe good science is a public service—and should be for the betterment of all.</p>
+    </div>
   </div>
 
   <!-- Initiatives preview: sticker clock -->
@@ -160,8 +179,7 @@
     <div class="stage-wrap" style="--h: 670px">
       <div class="stage" id="clock">
         <div class="wwd-head">
-          <p class="mono semi c-lime">03 — Initiatives</p>
-          <p class="h2 c-navy" style="font-size: 64px; letter-spacing: -2.56px">What we do.</p>
+          <p class="h2 c-navy" style="font-size: 64px; letter-spacing: -2.56px">What we do</p>
         </div>
         <a class="btn btn-outline wwd-all" href="#/initiatives"><span class="lbl">All initiatives</span> <span class="arr">→</span></a>
 
@@ -196,16 +214,23 @@
     <div class="wrap">
       <div class="sec-head">
         <div class="titles">
-          <p class="mono semi c-green">04 — On Instagram</p>
-          <p class="h2 c-cream">Recently at SPR.</p>
+          <p class="mono c-green">[04] as seen on Instagram</p>
+          <p class="h2 c-cream">Recently at SPR</p>
         </div>
-        <a class="btn btn-outline on-dark c-cream" href="#/get-involved">Follow us <span class="arr">→</span></a>
+        <a class="btn btn-outline on-dark c-cream" href="https://www.instagram.com/spr.umd/" target="_blank" rel="noopener">Follow us <span class="arr">→</span></a>
       </div>
       <div class="posts">
-        <div class="post mono">[ instagram post ]</div>
-        <div class="post mono">[ instagram post ]</div>
-        <div class="post mono">[ instagram post ]</div>
-        <div class="post mono">[ instagram post ]</div>
+        <a class="post mono" href="https://www.instagram.com/spr.umd/" target="_blank" rel="noopener">[ instagram post ]</a>
+        <a class="post mono" href="https://www.instagram.com/spr.umd/" target="_blank" rel="noopener">[ instagram post ]</a>
+        <a class="post mono" href="https://www.instagram.com/spr.umd/" target="_blank" rel="noopener">[ instagram post ]</a>
+        <a class="post mono" href="https://www.instagram.com/spr.umd/" target="_blank" rel="noopener">[ instagram post ]</a>
+        <!-- Click stars she kept (2026-11-07): --x/--y = centre, measured from the middle / top of the posts row -->
+        <span class="star tinted insta-star" aria-hidden="true" style="--x:-13px; --y:-104px; --size:57px; --r:24deg"><img src="assets/sticker62.png" alt=""><i style="--m:url('assets/sticker62.png'); background:#00d37f"></i></span>
+        <span class="star tinted insta-star" aria-hidden="true" style="--x:-600px; --y:-25px; --size:32px; --r:36deg"><img src="assets/sticker63.png" alt=""><i style="--m:url('assets/sticker63.png'); background:#c6f221"></i></span>
+        <span class="star tinted insta-star" aria-hidden="true" style="--x:-686px; --y:266px; --size:78px; --r:15deg"><img src="assets/sticker63.png" alt=""><i style="--m:url('assets/sticker63.png'); background:#c6f221"></i></span>
+        <span class="star tinted insta-star" aria-hidden="true" style="--x:668px; --y:37px; --size:40px; --r:33deg"><img src="assets/sticker62.png" alt=""><i style="--m:url('assets/sticker62.png'); background:#c5b6f1"></i></span>
+        <span class="star insta-star" aria-hidden="true" style="--x:-339px; --y:404px; --size:34px; --r:4deg"><img src="assets/sticker63.png" alt=""></span>
+        <span class="star tinted insta-star" aria-hidden="true" style="--x:407px; --y:444px; --size:39px; --r:-2deg"><img src="assets/sticker63.png" alt=""><i style="--m:url('assets/sticker63.png'); background:#c5b6f1"></i></span>
       </div>
     </div>
   </div>
@@ -214,8 +239,8 @@
   <div class="cta-lime">
     <div class="wrap">
       <div class="text">
-        <p class="mono semi">05 — Get involved</p>
-        <p class="display">Come to our next<br>general body meeting.</p>
+        <p class="mono">[05] Get involved</p>
+        <p class="display">Come to our next<br>general body meeting</p>
         <p class="body-l">Bi-monthly GBMs with teach-ins on research and science policy, socials, guest speakers, and more!</p>
       </div>
       <a class="btn btn-green" href="#/events">See events <span class="arr">→</span></a>
@@ -425,9 +450,9 @@
       <p class="mono semi">02</p>
       <div class="stack"><p class="h3">Join a program</p><p class="body-m">Sign up for the Link Program, Journal Club, Mini Conference, or the SciPol Hackathon.</p><p class="mono semi go">View initiatives <span class="arr">→</span></p></div>
     </a>
-    <a class="way bg-lavender" href="#/get-involved">
+    <a class="way bg-lavender" href="https://www.instagram.com/spr.umd/" target="_blank" rel="noopener">
       <p class="mono semi">03</p>
-      <div class="stack"><p class="h3">Follow along</p><p class="body-m">Keep up with events and science policy news on Instagram.</p><p class="mono semi go">[ @instagram ] <span class="arr">→</span></p></div>
+      <div class="stack"><p class="h3">Follow along</p><p class="body-m">Keep up with events and science policy news on Instagram.</p><p class="mono semi go">@spr.umd <span class="arr">→</span></p></div>
     </a>
   </div>
   <div class="contact">
@@ -474,7 +499,7 @@
       <div class="footer-contact">
         <p class="h3">Good science is a public service.</p>
         <p class="mono">[ club email ]</p>
-        <p class="mono">[ @instagram handle ]</p>
+        <a class="mono" href="https://www.instagram.com/spr.umd/" target="_blank" rel="noopener">@spr.umd</a>
       </div>
       <div class="footer-cols mono">
         <div class="footer-col">
@@ -483,7 +508,7 @@
         </div>
         <div class="footer-col">
           <p class="semi hd">Get involved</p>
-          <a href="#/events">Events</a><a href="#/get-involved">Contact</a><a href="#/get-involved">Instagram</a>
+          <a href="#/events">Events</a><a href="#/get-involved">Contact</a><a href="https://www.instagram.com/spr.umd/" target="_blank" rel="noopener">Instagram</a>
         </div>
       </div>
     </div>
@@ -581,6 +606,6 @@
 
 <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
 <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-<script src="main.js?v=127"></script>
+<script src="main.js?v=153"></script>
 </body>
 </html>
