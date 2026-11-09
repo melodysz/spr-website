@@ -79,7 +79,7 @@ const NAV_H = () => { const nav = $('#nav'); return nav.offsetHeight + parseFloa
   let under = null; // element currently under the cursor
   function updateUnder(t) {
     under = t;
-    hovering = !!t?.closest('a, button, .cw-deco, .star-layer .star, .insta-star, .reel-card:not(.spot), .chip, .legend-item'); // not the crossword squares (her call)
+    hovering = !!t?.closest('a, button, .cw-deco, .star-layer .star, .reel-card:not(.spot), .chip, .legend-item'); // not the crossword squares (her call)
     el.classList.toggle('on-green', !!t?.closest('.footer, .founders, .bg-green, .btn-green'));
     dark = isDark(t);
     sqCanvas.style.mixBlendMode = dark ? cfg.darkBlend : cfg.blend;
@@ -1732,7 +1732,7 @@ const intro = (function () {
   addEventListener('hashchange', () => layer.replaceChildren());
   // Hovering a star (a placed one or a crossword sticker) also tilts it, by a new random angle each time
   addEventListener('pointerover', e => {
-    const star = e.target.closest?.('.star-layer .star, .cw-deco, .insta-star');
+    const star = e.target.closest?.('.star-layer .star, .cw-deco');
     if (!star || star.contains(e.relatedTarget)) return;
     const deg = (8 + Math.random() * 22) * (Math.random() < 0.5 ? -1 : 1); // 8–30°, either way
     star.style.setProperty('--tilt', deg.toFixed(1) + 'deg');
@@ -2064,30 +2064,6 @@ const intro = (function () {
       img.src = src;
     });
   }).catch(() => {});
-})();
-
-/* ───────── Instagram stars: draggable, like the crossword stickers (dragging moves their --x / --y) ───────── */
-(function instaStars() {
-  let topZ = 10;
-  $$('.insta-star').forEach(el => {
-    let start = null;
-    el.addEventListener('pointerdown', e => {
-      if (e.button !== 0) return;
-      e.preventDefault(); // no native image drag
-      el.setPointerCapture(e.pointerId);
-      el.style.zIndex = ++topZ;
-      el.classList.add('dragging');
-      start = { x: e.clientX, y: e.clientY, px: parseFloat(el.style.getPropertyValue('--x')), py: parseFloat(el.style.getPropertyValue('--y')) };
-    });
-    el.addEventListener('pointermove', e => {
-      if (!start) return;
-      el.style.setProperty('--x', start.px + e.clientX - start.x + 'px');
-      el.style.setProperty('--y', start.py + e.clientY - start.y + 'px');
-    });
-    const drop = () => { start = null; el.classList.remove('dragging'); };
-    el.addEventListener('pointerup', drop);
-    el.addEventListener('pointercancel', drop);
-  });
 })();
 
 /* ───────── Shift + H hides all dev UI (dev buttons and panels), remembered in this browser ─────────
